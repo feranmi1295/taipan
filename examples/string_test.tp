@@ -1,0 +1,29 @@
+use std.io
+
+fn main() {
+    let name: str = "Taipan"
+    let lang: str = "Language"
+
+    println(name)
+
+    let full: str = name.concat(" ")
+    let full2: str = full.concat(lang)
+    println(full2)
+
+    let n: i32 = name.len()
+    println("name length:")
+    println(n)
+
+    let greeting: str = "Hello"
+    let same: i32 = greeting.eq("Hello")
+    println("eq Hello Hello:")
+    println(same)
+
+    let diff: i32 = greeting.eq("World")
+    println("eq Hello World:")
+    println(diff)
+
+    let sub: str = name.slice(0, 3)
+    println("slice 0-3:")
+    println(sub)
+}

@@ -31,6 +31,9 @@ int32_t  __taipan_str_len    (const char *s);
 char    *__taipan_str_concat (const char *a, const char *b);
 int32_t  __taipan_str_eq     (const char *a, const char *b);
 char    *__taipan_str_slice  (const char *s, int32_t start, int32_t end);
+char    *__taipan_str_concat (const char *a, const char *b);
+int32_t  __taipan_str_eq     (const char *a, const char *b);
+char    *__taipan_str_slice  (const char *s, int32_t start, int32_t end);
 char    *__taipan_int_to_str (int32_t n);
 char    *__taipan_float_to_str(float f);
 

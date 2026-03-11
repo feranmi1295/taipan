@@ -7,6 +7,10 @@ declare i8* @malloc(i32)
 declare i8* @__taipan_array_new(i32, i32)
 declare void @free(i8*)
 declare i32 @__taipan_array_len(i8*)
+declare i32 @__taipan_str_len(i8*)
+declare i8* @__taipan_str_concat(i8*, i8*)
+declare i32 @__taipan_str_eq(i8*, i8*)
+declare i8* @__taipan_str_slice(i8*, i32, i32)
 
 %struct.Circle = type { float }
 

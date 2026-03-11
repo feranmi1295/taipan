@@ -674,6 +674,47 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
                 // Evaluate self (the object)
                 CGValue self_val = cg_expr(cg, obj_node);
 
+                // ── str built-in methods ─────────────────
+                if (!strcmp(self_val.lltype, "i8*")) {
+                    // Load self if it's behind a pointer (alloca of i8*)
+                    CGValue str_self = self_val;
+                    if (strcmp(self_val.lltype, "i8*") == 0 && self_val.name[0] == '%') {
+                        // already i8* value, use directly
+                    }
+                    if (!strcmp(method_name, "len")) {
+                        int r = next_reg(cg);
+                        emit(cg, "  %%%d = call i32 @__taipan_str_len(i8* %s)\n", r, str_self.name);
+                        free(args);
+                        snprintf(val.name,   sizeof(val.name),   "%%%d", r);
+                        snprintf(val.lltype, sizeof(val.lltype),  "i32");
+                        return val;
+                    } else if (!strcmp(method_name, "concat")) {
+                        int r = next_reg(cg);
+                        const char *arg0 = argc > 0 ? args[0].name : "null";
+                        emit(cg, "  %%%d = call i8* @__taipan_str_concat(i8* %s, i8* %s)\n", r, str_self.name, arg0);
+                        free(args);
+                        snprintf(val.name,   sizeof(val.name),   "%%%d", r);
+                        snprintf(val.lltype, sizeof(val.lltype),  "i8*");
+                        return val;
+                    } else if (!strcmp(method_name, "eq")) {
+                        int r = next_reg(cg);
+                        const char *arg0 = argc > 0 ? args[0].name : "null";
+                        emit(cg, "  %%%d = call i32 @__taipan_str_eq(i8* %s, i8* %s)\n", r, str_self.name, arg0);
+                        free(args);
+                        snprintf(val.name,   sizeof(val.name),   "%%%d", r);
+                        snprintf(val.lltype, sizeof(val.lltype),  "i32");
+                        return val;
+                    } else if (!strcmp(method_name, "slice")) {
+                        int r = next_reg(cg);
+                        const char *a0 = argc > 0 ? args[0].name : "0";
+                        const char *a1 = argc > 1 ? args[1].name : "0";
+                        emit(cg, "  %%%d = call i8* @__taipan_str_slice(i8* %s, i32 %s, i32 %s)\n", r, str_self.name, a0, a1);
+                        free(args);
+                        snprintf(val.name,   sizeof(val.name),   "%%%d", r);
+                        snprintf(val.lltype, sizeof(val.lltype),  "i8*");
+                        return val;
+                    }
+                }
                 // Determine entity name from type
                 char ent_name2[64] = {0};
                 if (strncmp(self_val.lltype, "%struct.", 8) == 0) {
@@ -1181,7 +1222,11 @@ void codegen_run(Codegen *cg, ASTNode *program) {
     emit(cg, "declare i8* @malloc(i32)\n");
     emit(cg, "declare i8* @__taipan_array_new(i32, i32)\n");
     emit(cg, "declare void @free(i8*)\n");
-    emit(cg, "declare i32 @__taipan_array_len(i8*)\n\n");
+    emit(cg, "declare i32 @__taipan_array_len(i8*)\n");
+    emit(cg, "declare i32 @__taipan_str_len(i8*)\n");
+    emit(cg, "declare i8* @__taipan_str_concat(i8*, i8*)\n");
+    emit(cg, "declare i32 @__taipan_str_eq(i8*, i8*)\n");
+    emit(cg, "declare i8* @__taipan_str_slice(i8*, i32, i32)\n\n");
 
     // ── Top-level function definitions ────────
     cg_scope_push(cg);
