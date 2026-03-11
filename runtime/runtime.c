@@ -203,3 +203,22 @@ int32_t __taipan_min_i32  (int32_t a, int32_t b) { return a < b ? a : b; }
 int32_t __taipan_max_i32  (int32_t a, int32_t b) { return a > b ? a : b; }
 float   __taipan_min_f32  (float a, float b) { return a < b ? a : b; }
 float   __taipan_max_f32  (float a, float b) { return a > b ? a : b; }
+// ─────────────────────────────────────────────
+//  Math — wraps libm
+// ─────────────────────────────────────────────
+#include <math.h>
+float   __taipan_sqrt  (float x)            { return sqrtf(x); }
+float   __taipan_pow   (float b, float e)   { return powf(b, e); }
+float   __taipan_abs_f (float x)            { return fabsf(x); }
+float   __taipan_floor (float x)            { return floorf(x); }
+float   __taipan_ceil  (float x)            { return ceilf(x); }
+float   __taipan_sin   (float x)            { return sinf(x); }
+float   __taipan_cos   (float x)            { return cosf(x); }
+float   __taipan_tan   (float x)            { return tanf(x); }
+float   __taipan_log   (float x)            { return logf(x); }
+float   __taipan_log2  (float x)            { return log2f(x); }
+int32_t __taipan_abs_i (int32_t x)          { return x < 0 ? -x : x; }
+int32_t __taipan_min_i (int32_t a, int32_t b) { return a < b ? a : b; }
+int32_t __taipan_max_i (int32_t a, int32_t b) { return a > b ? a : b; }
+float   __taipan_min_f (float a, float b)   { return a < b ? a : b; }
+float   __taipan_max_f (float a, float b)   { return a > b ? a : b; }

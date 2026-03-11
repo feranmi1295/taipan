@@ -665,6 +665,43 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
                         goto emit_call;
                     }
                 }
+                // std.math builtins
+                struct { const char *tp; const char *ll; const char *rt; } math_fns[] = {
+                    {"sqrt",  "@__taipan_sqrt",  "float"},
+                    {"pow",   "@__taipan_pow",   "float"},
+                    {"abs_f", "@__taipan_abs_f", "float"},
+                    {"floor", "@__taipan_floor", "float"},
+                    {"ceil",  "@__taipan_ceil",  "float"},
+                    {"sin",   "@__taipan_sin",   "float"},
+                    {"cos",   "@__taipan_cos",   "float"},
+                    {"tan",   "@__taipan_tan",   "float"},
+                    {"log",   "@__taipan_log",   "float"},
+                    {"log2",  "@__taipan_log2",  "float"},
+                    {"abs_i", "@__taipan_abs_i", "i32"},
+                    {"min_i", "@__taipan_min_i", "i32"},
+                    {"max_i", "@__taipan_max_i", "i32"},
+                    {"min_f", "@__taipan_min_f", "float"},
+                    {"max_f", "@__taipan_max_f", "float"},
+                    {NULL, NULL, NULL}
+                };
+                int math_matched = 0;
+                for (int mi = 0; math_fns[mi].tp; mi++) {
+                    if (!strcmp(fname, math_fns[mi].tp)) {
+                        int r = next_reg(cg);
+                        fprintf(cg->out, "  %%%d = call %s %s(", r, math_fns[mi].rt, math_fns[mi].ll);
+                        for (int ai = 0; ai < argc; ai++) {
+                            if (ai) fprintf(cg->out, ", ");
+                            fprintf(cg->out, "%s %s", args[ai].lltype, args[ai].name);
+                        }
+                        fprintf(cg->out, ")\n");
+                        free(args);
+                        snprintf(val.name,   sizeof(val.name),   "%%%d", r);
+                        snprintf(val.lltype, sizeof(val.lltype),  "%s", math_fns[mi].rt);
+                        math_matched = 1;
+                        return val;
+                    }
+                }
+                if (!math_matched)
                 snprintf(callee, sizeof(callee), "@%s", fname);
             } else if (node->as.call.callee->type == NODE_MEMBER) {
                 // method call: obj.method(args) → @Entity__method(self, args)
@@ -1226,7 +1263,23 @@ void codegen_run(Codegen *cg, ASTNode *program) {
     emit(cg, "declare i32 @__taipan_str_len(i8*)\n");
     emit(cg, "declare i8* @__taipan_str_concat(i8*, i8*)\n");
     emit(cg, "declare i32 @__taipan_str_eq(i8*, i8*)\n");
-    emit(cg, "declare i8* @__taipan_str_slice(i8*, i32, i32)\n\n");
+    emit(cg, "declare i8* @__taipan_str_slice(i8*, i32, i32)\n");
+    // Math
+    emit(cg, "declare float @__taipan_sqrt(float)\n");
+    emit(cg, "declare float @__taipan_pow(float, float)\n");
+    emit(cg, "declare float @__taipan_abs_f(float)\n");
+    emit(cg, "declare float @__taipan_floor(float)\n");
+    emit(cg, "declare float @__taipan_ceil(float)\n");
+    emit(cg, "declare float @__taipan_sin(float)\n");
+    emit(cg, "declare float @__taipan_cos(float)\n");
+    emit(cg, "declare float @__taipan_tan(float)\n");
+    emit(cg, "declare float @__taipan_log(float)\n");
+    emit(cg, "declare float @__taipan_log2(float)\n");
+    emit(cg, "declare i32 @__taipan_abs_i(i32)\n");
+    emit(cg, "declare i32 @__taipan_min_i(i32, i32)\n");
+    emit(cg, "declare i32 @__taipan_max_i(i32, i32)\n");
+    emit(cg, "declare float @__taipan_min_f(float, float)\n");
+    emit(cg, "declare float @__taipan_max_f(float, float)\n\n");
 
     // ── Top-level function definitions ────────
     cg_scope_push(cg);

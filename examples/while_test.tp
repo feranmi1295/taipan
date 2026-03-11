@@ -1,0 +1,18 @@
+use std.io
+
+fn main() {
+    let i: i32 = 0
+    while i < 5 {
+        println(i)
+        i += 1
+    }
+
+    let sum: i32 = 0
+    let n: i32 = 1
+    while n <= 10 {
+        sum = sum + n
+        n += 1
+    }
+    println("Sum 1-10:")
+    println(sum)
+}

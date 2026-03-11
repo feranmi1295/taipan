@@ -69,3 +69,19 @@ void     __taipan_init       (void);
 void     __taipan_panic      (const char *msg);
 
 #endif /* RUNTIME_H */
+// Math operations (wraps libm)
+float   __taipan_sqrt   (float x);
+float   __taipan_pow    (float base, float exp);
+float   __taipan_abs_f  (float x);
+float   __taipan_floor  (float x);
+float   __taipan_ceil   (float x);
+float   __taipan_sin    (float x);
+float   __taipan_cos    (float x);
+float   __taipan_tan    (float x);
+float   __taipan_log    (float x);
+float   __taipan_log2   (float x);
+int32_t __taipan_abs_i  (int32_t x);
+int32_t __taipan_min_i  (int32_t a, int32_t b);
+int32_t __taipan_max_i  (int32_t a, int32_t b);
+float   __taipan_min_f  (float a, float b);
+float   __taipan_max_f  (float a, float b);

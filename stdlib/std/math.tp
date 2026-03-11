@@ -1,0 +1,6 @@
+// std.math — Taipan standard math library
+// Built-in functions: sqrt, pow, sin, cos, tan, log, log2
+// abs_f, abs_i, floor, ceil, min_f, max_f, min_i, max_i
+//
+// Usage: use std.math
+// Then call sqrt(x), sin(x), etc. directly

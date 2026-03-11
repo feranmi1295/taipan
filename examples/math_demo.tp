@@ -1,0 +1,32 @@
+use std.io
+use std.math
+
+fn main() {
+    let x: f32 = 25.0
+    let s: f32 = sqrt(x)
+    println("sqrt(25):")
+    println(s)
+
+    let p: f32 = pow(2.0, 10.0)
+    println("2^10:")
+    println(p)
+
+    let half_pi: f32 = 1.57079632
+    println("sin(pi/2):")
+    println(sin(half_pi))
+    println("cos(0):")
+    println(cos(0.0))
+
+    println("min_f(3.5, 7.2):")
+    println(min_f(3.5, 7.2))
+    println("max_i(10, 42):")
+    println(max_i(10, 42))
+
+    println("log(2.718281828):")
+    println(log(2.718281828))
+
+    println("floor(3.7):")
+    println(floor(3.7))
+    println("ceil(3.2):")
+    println(ceil(3.2))
+}
