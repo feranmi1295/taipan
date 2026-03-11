@@ -1,0 +1,27 @@
+# Build outputs
+venom
+*.o
+*.a
+*.ll
+*.s
+
+# Test binaries
+test_lexer
+test_parser
+test_analyzer
+test_codegen
+test_runtime
+
+# Example binaries (no extension)
+examples/hello
+examples/entity_demo
+examples/mutation_demo
+examples/iter_demo
+examples/features_test
+examples/arrays
+examples/unsafe_demo
+examples/tensor_demo
+examples/mut_simple
+
+# OS
+.DS_Store
