@@ -1,0 +1,34 @@
+use std.io
+
+entity Circle {
+    radius: f32
+
+    fn area() -> f32 {
+        return radius * radius * 3.14159
+    }
+
+    fn describe() {
+        let a = area()
+        println("radius:")
+        println(radius)
+        println("area:")
+        println(a)
+    }
+}
+
+fn main() {
+    let c = Circle(radius=5.0)
+    c.describe()
+
+    let result = c.area()
+    println("direct area call:")
+    println(result)
+
+    let floats: [f32] = [1.5, 2.5, 3.5, 4.5]
+    let sum: f32 = 0.0
+    for f in floats {
+        sum = sum + f
+    }
+    println("float sum:")
+    println(sum)
+}

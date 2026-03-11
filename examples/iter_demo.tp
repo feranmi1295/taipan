@@ -1,0 +1,14 @@
+use std.io
+
+fn main() {
+    let nums: [i32] = [10, 20, 30, 40, 50]
+    let total: i32 = 0
+    for n in nums {
+        total = total + n
+    }
+    println("Sum:")
+    println(total)
+    for n in nums {
+        println(n)
+    }
+}

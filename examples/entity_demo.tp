@@ -1,0 +1,30 @@
+use std.io
+
+entity Point {
+    x: f32
+    y: f32
+
+    fn describe() {
+        println("Point entity:")
+        println(x)
+        println(y)
+    }
+}
+
+entity Rectangle {
+    width: f32
+    height: f32
+
+    fn area() -> f32 {
+        return width * height
+    }
+}
+
+fn main() {
+    let p = Point(x=3.0, y=4.0)
+    p.describe()
+
+    let r = Rectangle(width=10.0, height=5.0)
+    println("Rectangle:")
+    println(r.width)
+}

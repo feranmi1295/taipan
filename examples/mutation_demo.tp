@@ -1,0 +1,35 @@
+use std.io
+
+entity Vec2 {
+    x: f32
+    y: f32
+
+    fn scale(factor: f32) {
+        x = x * factor
+        y = y * factor
+    }
+
+    fn translate(dx: f32, dy: f32) {
+        x += dx
+        y += dy
+    }
+
+    fn print_vec() {
+        println("x:")
+        println(x)
+        println("y:")
+        println(y)
+    }
+}
+
+fn main() {
+    let v = Vec2(x=2.0, y=3.0)
+    println("Initial:")
+    v.print_vec()
+    v.scale(4.0)
+    println("After scale by 4:")
+    v.print_vec()
+    v.translate(1.0, -1.0)
+    println("After translate:")
+    v.print_vec()
+}
