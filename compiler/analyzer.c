@@ -559,7 +559,7 @@ static void analyze_stmt(Analyzer *a, ASTNode *node) {
 
         case NODE_IF: {
             TypeInfo *cond = analyze_expr(a, node->as.if_stmt.condition);
-            if (cond->kind != TY_BOOL && cond->kind != TY_UNKNOWN) {
+            if (cond->kind != TY_BOOL && cond->kind != TY_I32 && cond->kind != TY_UNKNOWN) {
                 sem_error(a, node, "If condition must be a bool expression");
             }
             type_free(cond);

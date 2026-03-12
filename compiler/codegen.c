@@ -954,6 +954,13 @@ static void cg_stmt(Codegen *cg, ASTNode *node) {
         case NODE_IF: {
             int id      = next_label(cg);
             CGValue cond = cg_expr(cg, node->as.if_stmt.condition);
+            // coerce i32 -> i1 if needed
+            if (strcmp(cond.lltype, "i1") != 0) {
+                int cr = next_reg(cg);
+                emit(cg, "  %%%d = icmp ne %s %s, 0\n", cr, cond.lltype, cond.name);
+                snprintf(cond.name, sizeof(cond.name), "%%%d", cr);
+                snprintf(cond.lltype, sizeof(cond.lltype), "i1");
+            }
             emit(cg, "  br i1 %s, label %%if.then.%d, label %%if.else.%d\n",
                  cond.name, id, id);
 

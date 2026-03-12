@@ -1,0 +1,35 @@
+use std.io
+use std.string
+
+fn main() {
+    println("TaipanBot v1.0 - type 'quit' to exit")
+    println("=====================================")
+
+    let running: i32 = 1
+    while running == 1 {
+        print("You: ")
+        let input: str = read_line()
+        let low: str = str_lower(input)
+
+        if str_contains(low, "quit") {
+            println("Bot: Goodbye!")
+            running = 0
+        } else if str_contains(low, "hello") {
+            println("Bot: Hello! How can I help you?")
+        } else if str_contains(low, "name") {
+            println("Bot: My name is TaipanBot, built in Taipan!")
+        } else if str_contains(low, "math") {
+            println("Bot: I love math! Try: sqrt(25) = 5")
+        } else if str_contains(low, "help") {
+            println("Bot: I understand: hello, name, math, help, quit")
+        } else if str_contains(low, "taipan") {
+            println("Bot: Taipan is a fast systems language by NextGen Inc!")
+        } else if str_contains(low, "how are you") {
+            println("Bot: I am running at C speed, so pretty fast!")
+        } else {
+            print("Bot: I don't understand '")
+            print(input)
+            println("' — try 'help'")
+        }
+    }
+}
