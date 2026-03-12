@@ -695,6 +695,39 @@ void analyzer_init(Analyzer *a) {
     { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); scope_define_fn(a,"abs_i",p,1,type_new(TY_I32)); }
     { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); p[1]=type_new(TY_I32); scope_define_fn(a,"min_i",p,2,type_new(TY_I32)); }
     { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); p[1]=type_new(TY_I32); scope_define_fn(a,"max_i",p,2,type_new(TY_I32)); }
+    // clamp
+    { TypeInfo **p=calloc(3,sizeof(TypeInfo*)); p[0]=type_new(TY_F32); p[1]=type_new(TY_F32); p[2]=type_new(TY_F32); scope_define_fn(a,"clamp_f",p,3,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(3,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); p[1]=type_new(TY_I32); p[2]=type_new(TY_I32); scope_define_fn(a,"clamp_i",p,3,type_new(TY_I32)); }
+    // std.io input
+    { scope_define_fn(a,"read_line",  NULL,0,type_new(TY_STR)); }
+    { scope_define_fn(a,"read_int",   NULL,0,type_new(TY_I32)); }
+    { scope_define_fn(a,"read_float", NULL,0,type_new(TY_F32)); }
+    // std.string
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"str_upper",   p,1,type_new(TY_STR)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"str_lower",   p,1,type_new(TY_STR)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"str_trim",    p,1,type_new(TY_STR)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); p[1]=type_new(TY_STR); scope_define_fn(a,"str_contains",p,2,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(3,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); p[1]=type_new(TY_STR); p[2]=type_new(TY_STR); scope_define_fn(a,"str_replace", p,3,type_new(TY_STR)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); p[1]=type_new(TY_STR); scope_define_fn(a,"str_split",   p,2,type_new(TY_STR)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"str_to_int",  p,1,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"str_to_float",p,1,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); scope_define_fn(a,"int_to_str",  p,1,type_new(TY_STR)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_F32); scope_define_fn(a,"float_to_str",p,1,type_new(TY_STR)); }
+    // std.rand
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); scope_define_fn(a,"rand_seed",  p,1,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); p[1]=type_new(TY_I32); scope_define_fn(a,"rand_int",   p,2,type_new(TY_I32)); }
+    { scope_define_fn(a,"rand_float",NULL,0,type_new(TY_F32)); }
+    // std.time
+    { scope_define_fn(a,"time_now",      NULL,0,type_new(TY_I32)); }
+    { scope_define_fn(a,"time_timestamp",NULL,0,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); scope_define_fn(a,"time_sleep",p,1,type_new(TY_I32)); }
+    // std.env
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"getenv",p,1,type_new(TY_STR)); }
+    // std.mem
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_I32); scope_define_fn(a,"mem_copy",p,2,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_I32); scope_define_fn(a,"mem_zero",p,2,type_new(TY_ANY)); }
+    // std.process
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"exec",p,1,type_new(TY_I32)); }
 }
 
 void analyzer_run(Analyzer *a, ASTNode *program) {

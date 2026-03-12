@@ -1,0 +1,63 @@
+use std.io
+use std.math
+use std.string
+use std.rand
+use std.time
+
+fn main() {
+    // std.string
+    let s: str = "  Hello Taipan  "
+    let t: str = str_trim(s)
+    println("trimmed:")
+    println(t)
+    let u: str = str_upper(t)
+    println("upper:")
+    println(u)
+    let l: str = str_lower(t)
+    println("lower:")
+    println(l)
+    let c: i32 = str_contains(t, "Taipan")
+    println("contains Taipan:")
+    println(c)
+    let r: str = str_replace(t, "Taipan", "World")
+    println("replaced:")
+    println(r)
+
+    // str <-> number conversions
+    let n: i32 = str_to_int("42")
+    println("str_to_int 42:")
+    println(n)
+    let ns: str = int_to_str(99)
+    println("int_to_str 99:")
+    println(ns)
+    let fs: str = float_to_str(3.14)
+    println("float_to_str 3.14:")
+    println(fs)
+
+    // std.rand
+    rand_seed(42)
+    let r1: i32 = rand_int(1, 100)
+    println("rand_int 1-100:")
+    println(r1)
+    let rf: f32 = rand_float()
+    println("rand_float:")
+    println(rf)
+
+    // std.math clamp
+    let v: f32 = clamp_f(15.0, 0.0, 10.0)
+    println("clamp_f(15, 0, 10):")
+    println(v)
+    let vi: i32 = clamp_i(150, 0, 100)
+    println("clamp_i(150, 0, 100):")
+    println(vi)
+
+    // std.time
+    let ts: i32 = time_now()
+    println("time_now (unix):")
+    println(ts)
+
+    // std.env
+    let path: str = getenv("HOME")
+    println("HOME:")
+    println(path)
+}

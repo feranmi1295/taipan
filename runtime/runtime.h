@@ -85,3 +85,37 @@ int32_t __taipan_min_i  (int32_t a, int32_t b);
 int32_t __taipan_max_i  (int32_t a, int32_t b);
 float   __taipan_min_f  (float a, float b);
 float   __taipan_max_f  (float a, float b);
+
+// std.math extras
+float   __taipan_clamp_f (float x, float lo, float hi);
+int32_t __taipan_clamp_i (int32_t x, int32_t lo, int32_t hi);
+// std.io input
+char   *__taipan_read_line  (void);
+int32_t __taipan_read_int   (void);
+float   __taipan_read_float (void);
+// std.string extras
+char   *__taipan_str_upper    (const char *s);
+char   *__taipan_str_lower    (const char *s);
+char   *__taipan_str_trim     (const char *s);
+int32_t __taipan_str_contains (const char *s, const char *sub);
+char   *__taipan_str_replace  (const char *s, const char *from, const char *to);
+char   *__taipan_str_split    (const char *s, const char *delim);
+int32_t __taipan_str_to_int   (const char *s);
+float   __taipan_str_to_float (const char *s);
+char   *__taipan_int_to_str   (int32_t n);
+char   *__taipan_float_to_str (float f);
+// std.rand
+int32_t __taipan_rand_seed  (int32_t s);
+int32_t __taipan_rand_int   (int32_t lo, int32_t hi);
+float   __taipan_rand_float (void);
+// std.time
+int64_t __taipan_time_now       (void);
+int64_t __taipan_time_timestamp (void);
+int32_t __taipan_time_sleep     (int32_t ms);
+// std.env
+char   *__taipan_getenv (const char *name);
+// std.mem
+char   *__taipan_mem_copy (char *dst, const char *src, int32_t n);
+char   *__taipan_mem_zero (char *dst, int32_t n);
+// std.process
+int32_t __taipan_exec (const char *cmd);

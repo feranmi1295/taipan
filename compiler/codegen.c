@@ -706,29 +706,63 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
                     return val;
                 }
                 // std.math builtins
-                struct { const char *tp; const char *ll; const char *rt; } math_fns[] = {
-                    {"sqrt",  "@__taipan_sqrt",  "float"},
-                    {"pow",   "@__taipan_pow",   "float"},
-                    {"abs_f", "@__taipan_abs_f", "float"},
-                    {"floor", "@__taipan_floor", "float"},
-                    {"ceil",  "@__taipan_ceil",  "float"},
-                    {"sin",   "@__taipan_sin",   "float"},
-                    {"cos",   "@__taipan_cos",   "float"},
-                    {"tan",   "@__taipan_tan",   "float"},
-                    {"log",   "@__taipan_log",   "float"},
-                    {"log2",  "@__taipan_log2",  "float"},
-                    {"abs_i", "@__taipan_abs_i", "i32"},
-                    {"min_i", "@__taipan_min_i", "i32"},
-                    {"max_i", "@__taipan_max_i", "i32"},
-                    {"min_f", "@__taipan_min_f", "float"},
-                    {"max_f", "@__taipan_max_f", "float"},
+                // Builtin registry — add new stdlib functions here
+                static const struct { const char *tp; const char *ll; const char *rt; } g_builtins[] = {
+                    // std.math
+                    {"sqrt",   "@__taipan_sqrt",   "float"},
+                    {"pow",    "@__taipan_pow",    "float"},
+                    {"abs_f",  "@__taipan_abs_f",  "float"},
+                    {"floor",  "@__taipan_floor",  "float"},
+                    {"ceil",   "@__taipan_ceil",   "float"},
+                    {"sin",    "@__taipan_sin",    "float"},
+                    {"cos",    "@__taipan_cos",    "float"},
+                    {"tan",    "@__taipan_tan",    "float"},
+                    {"log",    "@__taipan_log",    "float"},
+                    {"log2",   "@__taipan_log2",   "float"},
+                    {"abs_i",  "@__taipan_abs_i",  "i32"},
+                    {"min_i",  "@__taipan_min_i",  "i32"},
+                    {"max_i",  "@__taipan_max_i",  "i32"},
+                    {"min_f",  "@__taipan_min_f",  "float"},
+                    {"max_f",  "@__taipan_max_f",  "float"},
+                    {"clamp_f","@__taipan_clamp_f","float"},
+                    {"clamp_i","@__taipan_clamp_i","i32"},
+                    // std.io
+                    {"read_line",  "@__taipan_read_line",  "i8*"},
+                    {"read_int",   "@__taipan_read_int",   "i32"},
+                    {"read_float", "@__taipan_read_float", "float"},
+                    // std.string
+                    {"str_upper",    "@__taipan_str_upper",    "i8*"},
+                    {"str_lower",    "@__taipan_str_lower",    "i8*"},
+                    {"str_trim",     "@__taipan_str_trim",     "i8*"},
+                    {"str_contains", "@__taipan_str_contains", "i32"},
+                    {"str_replace",  "@__taipan_str_replace",  "i8*"},
+                    {"str_split",    "@__taipan_str_split",    "i8*"},
+                    {"str_to_int",   "@__taipan_str_to_int",   "i32"},
+                    {"str_to_float", "@__taipan_str_to_float", "float"},
+                    {"int_to_str",   "@__taipan_int_to_str",   "i8*"},
+                    {"float_to_str", "@__taipan_float_to_str", "i8*"},
+                    // std.rand
+                    {"rand_int",   "@__taipan_rand_int",   "i32"},
+                    {"rand_float", "@__taipan_rand_float", "float"},
+                    {"rand_seed",  "@__taipan_rand_seed",  "i32"},
+                    // std.time
+                    {"time_now",       "@__taipan_time_now",       "i64"},
+                    {"time_sleep",     "@__taipan_time_sleep",     "i32"},
+                    {"time_timestamp", "@__taipan_time_timestamp", "i64"},
+                    // std.env
+                    {"getenv", "@__taipan_getenv", "i8*"},
+                    // std.mem
+                    {"mem_copy", "@__taipan_mem_copy", "i8*"},
+                    {"mem_zero", "@__taipan_mem_zero", "i8*"},
+                    // std.process
+                    {"exec", "@__taipan_exec", "i32"},
                     {NULL, NULL, NULL}
                 };
-                int math_matched = 0;
-                for (int mi = 0; math_fns[mi].tp; mi++) {
-                    if (!strcmp(fname, math_fns[mi].tp)) {
+                int builtin_matched = 0;
+                for (int bi = 0; g_builtins[bi].tp; bi++) {
+                    if (!strcmp(fname, g_builtins[bi].tp)) {
                         int r = next_reg(cg);
-                        fprintf(cg->out, "  %%%d = call %s %s(", r, math_fns[mi].rt, math_fns[mi].ll);
+                        fprintf(cg->out, "  %%%d = call %s %s(", r, g_builtins[bi].rt, g_builtins[bi].ll);
                         for (int ai = 0; ai < argc; ai++) {
                             if (ai) fprintf(cg->out, ", ");
                             fprintf(cg->out, "%s %s", args[ai].lltype, args[ai].name);
@@ -736,12 +770,12 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
                         fprintf(cg->out, ")\n");
                         free(args);
                         snprintf(val.name,   sizeof(val.name),   "%%%d", r);
-                        snprintf(val.lltype, sizeof(val.lltype),  "%s", math_fns[mi].rt);
-                        math_matched = 1;
+                        snprintf(val.lltype, sizeof(val.lltype),  "%s", g_builtins[bi].rt);
+                        builtin_matched = 1;
                         return val;
                     }
                 }
-                if (!math_matched)
+                if (!builtin_matched)
                 snprintf(callee, sizeof(callee), "@%s", fname);
             } else if (node->as.call.callee->type == NODE_MEMBER) {
                 // method call: obj.method(args) → @Entity__method(self, args)
@@ -1338,6 +1372,39 @@ void codegen_run(Codegen *cg, ASTNode *program) {
     fputs("@.fmtd_no_nl = private unnamed_addr constant [3 x i8] c\"%d\\00\"\n", cg->out);
     fputs("@.fmtf_no_nl = private unnamed_addr constant [3 x i8] c\"%f\\00\"\n", cg->out);
     fputs("@.fmts = private unnamed_addr constant [3 x i8] c\"%s\\00\"\n", cg->out);
+    // std.math extras
+    fputs("declare float @__taipan_clamp_f(float, float, float)\n", cg->out);
+    fputs("declare i32 @__taipan_clamp_i(i32, i32, i32)\n", cg->out);
+    // std.io input
+    fputs("declare i8* @__taipan_read_line()\n", cg->out);
+    fputs("declare i32 @__taipan_read_int()\n", cg->out);
+    fputs("declare float @__taipan_read_float()\n", cg->out);
+    // std.string
+    fputs("declare i8* @__taipan_str_upper(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_str_lower(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_str_trim(i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_str_contains(i8*, i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_str_replace(i8*, i8*, i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_str_split(i8*, i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_str_to_int(i8*)\n", cg->out);
+    fputs("declare float @__taipan_str_to_float(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_int_to_str(i32)\n", cg->out);
+    fputs("declare i8* @__taipan_float_to_str(float)\n", cg->out);
+    // std.rand
+    fputs("declare i32 @__taipan_rand_seed(i32)\n", cg->out);
+    fputs("declare i32 @__taipan_rand_int(i32, i32)\n", cg->out);
+    fputs("declare float @__taipan_rand_float()\n", cg->out);
+    // std.time
+    fputs("declare i64 @__taipan_time_now()\n", cg->out);
+    fputs("declare i64 @__taipan_time_timestamp()\n", cg->out);
+    fputs("declare i32 @__taipan_time_sleep(i32)\n", cg->out);
+    // std.env
+    fputs("declare i8* @__taipan_getenv(i8*)\n", cg->out);
+    // std.mem
+    fputs("declare i8* @__taipan_mem_copy(i8*, i8*, i32)\n", cg->out);
+    fputs("declare i8* @__taipan_mem_zero(i8*, i32)\n", cg->out);
+    // std.process
+    fputs("declare i32 @__taipan_exec(i8*)\n", cg->out);
     for (int i = 0; i < cg->str_count; i++) {
         const char *s = cg->str_literals[i];
         int len = 0;
