@@ -567,24 +567,36 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
 
                 // Built-ins
                 if (!strcmp(fname, "println") || !strcmp(fname, "print")) {
-                    // emit call to our runtime __taipan_println
+                    int is_println = !strcmp(fname, "println");
                     if (argc > 0) {
-                        // cast any arg to i8* for printf
                         if (!strcmp(args[0].lltype, "i8*")) {
-                            { int pr=next_reg(cg); emit(cg, "  %%%d = call i32 @puts(i8* %s)\n", pr, args[0].name); (void)pr; }
+                            if (is_println) {
+                                int pr=next_reg(cg);
+                                emit(cg, "  %%%d = call i32 @puts(i8* %s)\n", pr, args[0].name);
+                                (void)pr;
+                            } else {
+                                // print: use printf with %s, no newline
+                                int fr=next_reg(cg);
+                                emit(cg, "  %%%d = getelementptr inbounds [3 x i8], [3 x i8]* @.fmts, i32 0, i32 0\n", fr);
+                                int pr=next_reg(cg);
+                                emit(cg, "  %%%d = call i32 (i8*, ...) @printf(i8* %%%d, i8* %s)\n", pr, fr, args[0].name);
+                                (void)pr;
+                            }
                         } else if (!strcmp(args[0].lltype, "float")) {
-                            // float: fpext to double, use %f format
+                            const char *fmt_sym = is_println ? "@.fmtf" : "@.fmtf_no_nl";
+                            const char *fmt_sz  = is_println ? "4" : "3";
                             int fmt_reg = next_reg(cg);
-                            emit(cg, "  %%%d = getelementptr inbounds [4 x i8], [4 x i8]* @.fmtf, i32 0, i32 0\n", fmt_reg);
+                            emit(cg, "  %%%d = getelementptr inbounds [%s x i8], [%s x i8]* %s, i32 0, i32 0\n", fmt_reg, fmt_sz, fmt_sz, fmt_sym);
                             int dbl = next_reg(cg);
                             emit(cg, "  %%%d = fpext float %s to double\n", dbl, args[0].name);
                             int pr2 = next_reg(cg);
                             emit(cg, "  %%%d = call i32 (i8*, ...) @printf(i8* %%%d, double %%%d)\n", pr2, fmt_reg, dbl);
                             (void)pr2;
                         } else {
-                            // integer: use %d format
+                            const char *fmt_sym = is_println ? "@.fmtd" : "@.fmtd_no_nl";
+                            const char *fmt_sz  = is_println ? "4" : "3";
                             int fmt_reg = next_reg(cg);
-                            emit(cg, "  %%%d = getelementptr inbounds [4 x i8], [4 x i8]* @.fmtd, i32 0, i32 0\n", fmt_reg);
+                            emit(cg, "  %%%d = getelementptr inbounds [%s x i8], [%s x i8]* %s, i32 0, i32 0\n", fmt_reg, fmt_sz, fmt_sz, fmt_sym);
                             int pr2 = next_reg(cg);
                             emit(cg, "  %%%d = call i32 (i8*, ...) @printf(i8* %%%d, %s %s)\n", pr2, fmt_reg, args[0].lltype, args[0].name);
                             (void)pr2;
@@ -664,6 +676,34 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
                         }
                         goto emit_call;
                     }
+                }
+                // Type casts: int(x) and float(x)
+                if (!strcmp(fname, "int") && argc == 1) {
+                    CGValue av = args[0];
+                    free(args);
+                    if (!strcmp(av.lltype, "float") || !strcmp(av.lltype, "double")) {
+                        int r = next_reg(cg);
+                        emit(cg, "  %%%d = fptosi %s %s to i32\n", r, av.lltype, av.name);
+                        snprintf(val.name,   sizeof(val.name),   "%%%d", r);
+                        snprintf(val.lltype, sizeof(val.lltype),  "i32");
+                    } else {
+                        // already int, return as-is
+                        val = av;
+                    }
+                    return val;
+                }
+                if (!strcmp(fname, "float") && argc == 1) {
+                    CGValue av = args[0];
+                    free(args);
+                    if (!strcmp(av.lltype, "i32") || !strcmp(av.lltype, "i64")) {
+                        int r = next_reg(cg);
+                        emit(cg, "  %%%d = sitofp %s %s to float\n", r, av.lltype, av.name);
+                        snprintf(val.name,   sizeof(val.name),   "%%%d", r);
+                        snprintf(val.lltype, sizeof(val.lltype),  "float");
+                    } else {
+                        val = av;
+                    }
+                    return val;
                 }
                 // std.math builtins
                 struct { const char *tp; const char *ll; const char *rt; } math_fns[] = {
@@ -1295,6 +1335,9 @@ void codegen_run(Codegen *cg, ASTNode *program) {
     // Fixed format strings (not interned, always same size)
     fputs("@.fmtd = private unnamed_addr constant [4 x i8] c\"%d\\0A\\00\"\n", cg->out);
     fputs("@.fmtf = private unnamed_addr constant [4 x i8] c\"%f\\0A\\00\"\n", cg->out);
+    fputs("@.fmtd_no_nl = private unnamed_addr constant [3 x i8] c\"%d\\00\"\n", cg->out);
+    fputs("@.fmtf_no_nl = private unnamed_addr constant [3 x i8] c\"%f\\00\"\n", cg->out);
+    fputs("@.fmts = private unnamed_addr constant [3 x i8] c\"%s\\00\"\n", cg->out);
     for (int i = 0; i < cg->str_count; i++) {
         const char *s = cg->str_literals[i];
         int len = 0;

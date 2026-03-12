@@ -1,0 +1,30 @@
+use std.io
+use std.math
+
+fn main() {
+    let x: f32 = 3.7
+    let n: i32 = int(x)
+    println("int(3.7):")
+    println(n)
+
+    let i: i32 = 5
+    let f: f32 = float(i)
+    println("float(5):")
+    println(f)
+
+    println("Sine wave:")
+    let row: i32 = 0
+    while row < 20 {
+        let angle: f32 = float(row) * 0.31415926
+        let sv: f32 = sin(angle)
+        let scaled: f32 = sv * 12.0
+        let col: i32 = int(scaled) + 12
+        let j: i32 = 0
+        while j < col {
+            print(" ")
+            j += 1
+        }
+        println("*")
+        row += 1
+    }
+}

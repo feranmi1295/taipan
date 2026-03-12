@@ -1,0 +1,17 @@
+use std.io
+
+fn main() {
+    let a: bool = true
+    let b: bool = false
+    let x: i32 = 10
+    let y: i32 = 20
+
+    if x < y {
+        println("x is less than y")
+    }
+
+    let flag: bool = x < y
+    if flag {
+        println("flag is true")
+    }
+}

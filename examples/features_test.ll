@@ -11,6 +11,21 @@ declare i32 @__taipan_str_len(i8*)
 declare i8* @__taipan_str_concat(i8*, i8*)
 declare i32 @__taipan_str_eq(i8*, i8*)
 declare i8* @__taipan_str_slice(i8*, i32, i32)
+declare float @__taipan_sqrt(float)
+declare float @__taipan_pow(float, float)
+declare float @__taipan_abs_f(float)
+declare float @__taipan_floor(float)
+declare float @__taipan_ceil(float)
+declare float @__taipan_sin(float)
+declare float @__taipan_cos(float)
+declare float @__taipan_tan(float)
+declare float @__taipan_log(float)
+declare float @__taipan_log2(float)
+declare i32 @__taipan_abs_i(i32)
+declare i32 @__taipan_min_i(i32, i32)
+declare i32 @__taipan_max_i(i32, i32)
+declare float @__taipan_min_f(float, float)
+declare float @__taipan_max_f(float, float)
 
 %struct.Circle = type { float }
 
@@ -136,6 +151,9 @@ foriter.end.0:
 ; String constants
 @.fmtd = private unnamed_addr constant [4 x i8] c"%d\0A\00"
 @.fmtf = private unnamed_addr constant [4 x i8] c"%f\0A\00"
+@.fmtd_no_nl = private unnamed_addr constant [3 x i8] c"%d\00"
+@.fmtf_no_nl = private unnamed_addr constant [3 x i8] c"%f\00"
+@.fmts = private unnamed_addr constant [3 x i8] c"%s\00"
 @.str.0 = private unnamed_addr constant [8 x i8] c"radius:\00"
 @.str.1 = private unnamed_addr constant [6 x i8] c"area:\00"
 @.str.2 = private unnamed_addr constant [18 x i8] c"direct area call:\00"

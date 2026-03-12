@@ -671,6 +671,30 @@ void analyzer_init(Analyzer *a) {
     TypeInfo **len_params = calloc(1, sizeof(TypeInfo*));
     len_params[0] = type_new(TY_ARRAY);
     scope_define_fn(a, "len", len_params, 1, type_new(TY_I32));
+    // int(any) -> i32
+    TypeInfo **int_params = calloc(1, sizeof(TypeInfo*));
+    int_params[0] = type_new(TY_ANY);
+    scope_define_fn(a, "int", int_params, 1, type_new(TY_I32));
+    // float(any) -> f32
+    TypeInfo **float_params = calloc(1, sizeof(TypeInfo*));
+    float_params[0] = type_new(TY_ANY);
+    scope_define_fn(a, "float", float_params, 1, type_new(TY_F32));
+    // Math builtins
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_F32); scope_define_fn(a,"sqrt",p,1,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_F32); scope_define_fn(a,"sin",p,1,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_F32); scope_define_fn(a,"cos",p,1,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_F32); scope_define_fn(a,"tan",p,1,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_F32); scope_define_fn(a,"log",p,1,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_F32); scope_define_fn(a,"log2",p,1,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_F32); scope_define_fn(a,"abs_f",p,1,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_F32); scope_define_fn(a,"floor",p,1,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_F32); scope_define_fn(a,"ceil",p,1,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_F32); p[1]=type_new(TY_F32); scope_define_fn(a,"pow",p,2,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_F32); p[1]=type_new(TY_F32); scope_define_fn(a,"min_f",p,2,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_F32); p[1]=type_new(TY_F32); scope_define_fn(a,"max_f",p,2,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); scope_define_fn(a,"abs_i",p,1,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); p[1]=type_new(TY_I32); scope_define_fn(a,"min_i",p,2,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); p[1]=type_new(TY_I32); scope_define_fn(a,"max_i",p,2,type_new(TY_I32)); }
 }
 
 void analyzer_run(Analyzer *a, ASTNode *program) {
