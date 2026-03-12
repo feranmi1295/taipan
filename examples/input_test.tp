@@ -1,0 +1,15 @@
+use std.io
+use std.string
+
+fn main() {
+    println("Enter your name:")
+    let name: str = read_line()
+    let greeting: str = str_replace("Hello, NAME!", "NAME", name)
+    println(greeting)
+
+    println("Enter a number:")
+    let n: i32 = read_int()
+    let doubled: i32 = n * 2
+    print("Doubled: ")
+    println(doubled)
+}
