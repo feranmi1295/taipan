@@ -224,6 +224,16 @@ static void    cg_block(Codegen *cg, ASTNode *node);
 // ─────────────────────────────────────────────
 //  Expression codegen → returns SSA value
 // ─────────────────────────────────────────────
+
+// Count actual bytes in a Taipan string literal (escape sequences = 1 byte each)
+static int taipan_str_byte_len(const char *s) {
+    int n = 0;
+    while (*s) {
+        if (s[0] == '\\' && s[1]) { s += 2; } else { s++; }
+        n++;
+    }
+    return n;
+}
 static CGValue cg_expr(Codegen *cg, ASTNode *node) {
     CGValue val;
     memset(&val, 0, sizeof(val));
@@ -268,7 +278,7 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
 
         case NODE_STRING_LIT: {
             int sid  = intern_string(cg, node->as.string_lit.value);
-            int len  = (int)strlen(node->as.string_lit.value) + 1;
+            int len  = taipan_str_byte_len(node->as.string_lit.value) + 1;
             int reg  = next_reg(cg);
             emit(cg, "  %%%d = getelementptr inbounds [%d x i8], [%d x i8]* @.str.%d, i32 0, i32 0\n",
                  reg, len, len, sid);
@@ -773,6 +783,19 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
                     {"mem_zero", "@__taipan_mem_zero", "i8*"},
                     // std.process
                     {"exec", "@__taipan_exec", "i32"},
+                    // std.fs
+                    {"fs_open",       "@__taipan_fs_open",       "i64"},
+                    {"fs_close",      "@__taipan_fs_close",      "i32"},
+                    {"fs_read",       "@__taipan_fs_read",       "i8*"},
+                    {"fs_read_line",  "@__taipan_fs_read_line",  "i8*"},
+                    {"fs_write",      "@__taipan_fs_write",      "i32"},
+                    {"fs_writeln",    "@__taipan_fs_writeln",    "i32"},
+                    {"fs_write_file", "@__taipan_fs_write_file", "i32"},
+                    {"fs_append",     "@__taipan_fs_append",     "i32"},
+                    {"fs_exists",     "@__taipan_fs_exists",     "i32"},
+                    {"fs_delete",     "@__taipan_fs_delete",     "i32"},
+                    {"fs_mkdir",      "@__taipan_fs_mkdir",      "i32"},
+                    {"fs_size",       "@__taipan_fs_size",       "i64"},
                     {NULL, NULL, NULL}
                 };
                 int builtin_matched = 0;
@@ -1014,6 +1037,11 @@ static void cg_stmt(Codegen *cg, ASTNode *node) {
             emit(cg, "  br label %%while.cond.%d\n", id);
             emit(cg, "while.cond.%d:\n", id);
             CGValue cond = cg_expr(cg, node->as.while_stmt.condition);
+            if (strcmp(cond.lltype, "i1") != 0) {
+                int cr = next_reg(cg);
+                emit(cg, "  %%%d = icmp ne %s %s, 0\n", cr, cond.lltype, cond.name);
+                snprintf(cond.name, sizeof(cond.name), "%%%d", cr);
+            }
             emit(cg, "  br i1 %s, label %%while.body.%d, label %%while.end.%d\n",
                  cond.name, id, id);
             emit(cg, "while.body.%d:\n", id);
@@ -1448,17 +1476,45 @@ void codegen_run(Codegen *cg, ASTNode *program) {
     fputs("declare i8* @__taipan_mem_zero(i8*, i32)\n", cg->out);
     // std.process
     fputs("declare i32 @__taipan_exec(i8*)\n", cg->out);
+    // std.fs
+    fputs("declare i64 @__taipan_fs_open(i8*, i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_fs_close(i64)\n", cg->out);
+    fputs("declare i8* @__taipan_fs_read(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_fs_read_line(i64)\n", cg->out);
+    fputs("declare i32 @__taipan_fs_write(i64, i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_fs_writeln(i64, i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_fs_write_file(i8*, i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_fs_append(i8*, i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_fs_exists(i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_fs_delete(i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_fs_mkdir(i8*)\n", cg->out);
+    fputs("declare i64 @__taipan_fs_size(i8*)\n", cg->out);
     for (int i = 0; i < cg->str_count; i++) {
         const char *s = cg->str_literals[i];
+        // Convert \n \t etc to LLVM hex escapes and count bytes
+        char llvm_str[8192] = {0};
+        char *w = llvm_str;
         int len = 0;
         for (const char *p = s; *p; ) {
-            if (p[0] == 92 && p[1] && p[2]) { p += 3; }
-            else { p++; }
+            if (p[0] == '\\' && p[1]) {
+                char c2 = p[1];
+                if      (c2 == 'n')  { w += sprintf(w, "\\0A"); }
+                else if (c2 == 't')  { w += sprintf(w, "\\09"); }
+                else if (c2 == 'r')  { w += sprintf(w, "\\0D"); }
+                else if (c2 == '\\') { w += sprintf(w, "\\5C"); }
+                else if (c2 == '"')  { w += sprintf(w, "\\22"); }
+                else if (c2 == '0')  { w += sprintf(w, "\\00"); }
+                else { *w++ = p[0]; *w++ = p[1]; }
+                p += 2;
+            } else {
+                *w++ = *p++;
+            }
             len++;
         }
-        len++;
+        *w = '\0';
+        len++; // null terminator
         emit(cg, "@.str.%d = private unnamed_addr constant [%d x i8] c\"%s\\00\"\n",
-             i, len, s);
+             i, len, llvm_str);
     }
 }
 

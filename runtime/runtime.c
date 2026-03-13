@@ -364,3 +364,101 @@ char *__taipan_mem_zero(char *dst, int32_t n) {
 //  std.process
 // ─────────────────────────────────────────────
 int32_t __taipan_exec(const char *cmd) { return (int32_t)system(cmd); }
+
+// ─────────────────────────────────────────────
+//  std.fs — file system
+// ─────────────────────────────────────────────
+#include <stdio.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+// open a file, returns FILE* cast to i64 handle (0 = error)
+int64_t __taipan_fs_open(const char *path, const char *mode) {
+    FILE *f = fopen(path, mode);
+    return f ? (int64_t)(uintptr_t)f : 0;
+}
+
+// close a file handle
+int32_t __taipan_fs_close(int64_t handle) {
+    if (!handle) return -1;
+    return fclose((FILE*)(uintptr_t)handle);
+}
+
+// read entire file into a malloc'd string (caller owns it)
+char *__taipan_fs_read(const char *path) {
+    FILE *f = fopen(path, "r");
+    if (!f) return strdup("");
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    rewind(f);
+    char *buf = malloc((size_t)sz + 1);
+    if (!buf) { fclose(f); return strdup(""); }
+    size_t n = fread(buf, 1, (size_t)sz, f);
+    buf[n] = '\0';
+    fclose(f);
+    return buf;
+}
+
+// read one line from handle
+char *__taipan_fs_read_line(int64_t handle) {
+    if (!handle) return strdup("");
+    char buf[4096];
+    if (!fgets(buf, sizeof(buf), (FILE*)(uintptr_t)handle)) return strdup("");
+    size_t l = strlen(buf);
+    if (l > 0 && buf[l-1] == '\n') buf[l-1] = '\0';
+    return strdup(buf);
+}
+
+// write string to file handle
+int32_t __taipan_fs_write(int64_t handle, const char *data) {
+    if (!handle || !data) return -1;
+    return fputs(data, (FILE*)(uintptr_t)handle);
+}
+
+// write string + newline to file handle
+int32_t __taipan_fs_writeln(int64_t handle, const char *data) {
+    if (!handle || !data) return -1;
+    int r = fputs(data, (FILE*)(uintptr_t)handle);
+    fputc('\n', (FILE*)(uintptr_t)handle);
+    return r;
+}
+
+// write entire string to a file path (overwrites)
+int32_t __taipan_fs_write_file(const char *path, const char *data) {
+    FILE *f = fopen(path, "w");
+    if (!f) return -1;
+    int r = fputs(data, f);
+    fclose(f);
+    return r;
+}
+
+// append string to a file path
+int32_t __taipan_fs_append(const char *path, const char *data) {
+    FILE *f = fopen(path, "a");
+    if (!f) return -1;
+    int r = fputs(data, f);
+    fclose(f);
+    return r;
+}
+
+// check if file exists
+int32_t __taipan_fs_exists(const char *path) {
+    return access(path, F_OK) == 0 ? 1 : 0;
+}
+
+// delete a file
+int32_t __taipan_fs_delete(const char *path) {
+    return remove(path) == 0 ? 1 : 0;
+}
+
+// make a directory
+int32_t __taipan_fs_mkdir(const char *path) {
+    return mkdir(path, 0755) == 0 ? 1 : 0;
+}
+
+// get file size in bytes
+int64_t __taipan_fs_size(const char *path) {
+    struct stat st;
+    if (stat(path, &st) != 0) return -1;
+    return (int64_t)st.st_size;
+}

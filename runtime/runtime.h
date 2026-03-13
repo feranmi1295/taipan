@@ -119,3 +119,17 @@ char   *__taipan_mem_copy (char *dst, const char *src, int32_t n);
 char   *__taipan_mem_zero (char *dst, int32_t n);
 // std.process
 int32_t __taipan_exec (const char *cmd);
+
+// std.fs
+int64_t __taipan_fs_open      (const char *path, const char *mode);
+int32_t __taipan_fs_close     (int64_t handle);
+char   *__taipan_fs_read      (const char *path);
+char   *__taipan_fs_read_line (int64_t handle);
+int32_t __taipan_fs_write     (int64_t handle, const char *data);
+int32_t __taipan_fs_writeln   (int64_t handle, const char *data);
+int32_t __taipan_fs_write_file(const char *path, const char *data);
+int32_t __taipan_fs_append    (const char *path, const char *data);
+int32_t __taipan_fs_exists    (const char *path);
+int32_t __taipan_fs_delete    (const char *path);
+int32_t __taipan_fs_mkdir     (const char *path);
+int64_t __taipan_fs_size      (const char *path);

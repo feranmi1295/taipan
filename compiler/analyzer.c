@@ -575,7 +575,7 @@ static void analyze_stmt(Analyzer *a, ASTNode *node) {
 
         case NODE_WHILE: {
             TypeInfo *cond = analyze_expr(a, node->as.while_stmt.condition);
-            if (cond->kind != TY_BOOL && cond->kind != TY_UNKNOWN) {
+            if (cond->kind != TY_BOOL && cond->kind != TY_I32 && cond->kind != TY_UNKNOWN) {
                 sem_error(a, node, "While condition must be a bool expression");
             }
             type_free(cond);
@@ -728,6 +728,19 @@ void analyzer_init(Analyzer *a) {
     { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_I32); scope_define_fn(a,"mem_zero",p,2,type_new(TY_ANY)); }
     // std.process
     { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"exec",p,1,type_new(TY_I32)); }
+    // std.fs
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); p[1]=type_new(TY_STR); scope_define_fn(a,"fs_open",p,2,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); scope_define_fn(a,"fs_close",p,1,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"fs_read",p,1,type_new(TY_STR)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); scope_define_fn(a,"fs_read_line",p,1,type_new(TY_STR)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); p[1]=type_new(TY_STR); scope_define_fn(a,"fs_write",p,2,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); p[1]=type_new(TY_STR); scope_define_fn(a,"fs_writeln",p,2,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); p[1]=type_new(TY_STR); scope_define_fn(a,"fs_write_file",p,2,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); p[1]=type_new(TY_STR); scope_define_fn(a,"fs_append",p,2,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"fs_exists",p,1,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"fs_delete",p,1,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"fs_mkdir",p,1,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"fs_size",p,1,type_new(TY_I32)); }
 }
 
 void analyzer_run(Analyzer *a, ASTNode *program) {

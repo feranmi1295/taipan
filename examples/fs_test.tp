@@ -1,0 +1,42 @@
+use std.io
+use std.fs
+use std.string
+
+fn main() {
+    // Write a file
+    fs_write_file("test.txt", "Hello from Taipan!\nLine 2\nLine 3\n")
+
+    // Check exists
+    let e: i32 = fs_exists("test.txt")
+    println("exists:")
+    println(e)
+
+    // Get size
+    let sz: i32 = fs_size("test.txt")
+    println("size:")
+    println(sz)
+
+    // Read entire file
+    let contents: str = fs_read("test.txt")
+    println("contents:")
+    println(contents)
+
+    // Append to file
+    fs_append("test.txt", "Line 4 appended\n")
+
+    // Read entire file again after append
+    let contents2: str = fs_read("test.txt")
+    println("after append:")
+    println(contents2)
+
+    // Write file
+    fs_write_file("output.txt", "Taipan wrote this file!\n")
+    println("output.txt exists:")
+    println(fs_exists("output.txt"))
+
+    // Delete files
+    fs_delete("test.txt")
+    fs_delete("output.txt")
+    println("exists after delete:")
+    println(fs_exists("test.txt"))
+}
