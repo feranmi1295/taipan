@@ -31,6 +31,23 @@ typedef struct {
 } EntityInfo;
 
 static EntityInfo  entity_registry[MAX_ENTITIES];
+
+// ── Regular function return type registry ─────────────────
+typedef struct { char name[64]; char ret_lltype[64]; } FnInfo;
+#define MAX_FNS 256
+static FnInfo fn_registry[MAX_FNS];
+static int    fn_count = 0;
+static void fn_register(const char *name, const char *ret) {
+    if (fn_count >= MAX_FNS) return;
+    strncpy(fn_registry[fn_count].name,     name, 63);
+    strncpy(fn_registry[fn_count].ret_lltype, ret, 63);
+    fn_count++;
+}
+static const char *fn_lookup_ret(const char *name) {
+    for (int i = 0; i < fn_count; i++)
+        if (!strcmp(fn_registry[i].name, name)) return fn_registry[i].ret_lltype;
+    return NULL;
+}
 static int         entity_count = 0;
 
 static EntityInfo *entity_find(const char *name) {
@@ -775,8 +792,12 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
                         return val;
                     }
                 }
-                if (!builtin_matched)
-                snprintf(callee, sizeof(callee), "@%s", fname);
+                if (!builtin_matched) {
+                    snprintf(callee, sizeof(callee), "@%s", fname);
+                    // look up return type from fn registry
+                    const char *looked = fn_lookup_ret(fname);
+                    if (looked) strncpy(ret_type, looked, 63);
+                }
             } else if (node->as.call.callee->type == NODE_MEMBER) {
                 // method call: obj.method(args) → @Entity__method(self, args)
                 ASTNode *obj_node = node->as.call.callee->as.member.object;
@@ -1368,6 +1389,15 @@ void codegen_run(Codegen *cg, ASTNode *program) {
     emit(cg, "declare float @__taipan_min_f(float, float)\n");
     emit(cg, "declare float @__taipan_max_f(float, float)\n\n");
 
+    // ── Pre-pass: register all function return types ─────
+    for (int i = 0; i < program->as.program.count; i++) {
+        ASTNode *n = program->as.program.stmts[i];
+        if (n->type != NODE_FN_DEF) continue;
+        char ret[64] = "void";
+        if (n->as.fn_def.return_type)
+            lltype_of_node(n->as.fn_def.return_type, ret, sizeof(ret));
+        fn_register(n->as.fn_def.name, ret);
+    }
     // ── Top-level function definitions ────────
     cg_scope_push(cg);
     for (int i = 0; i < program->as.program.count; i++) {
