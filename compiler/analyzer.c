@@ -741,6 +741,7 @@ void analyzer_init(Analyzer *a) {
     { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"fs_delete",p,1,type_new(TY_I32)); }
     { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"fs_mkdir",p,1,type_new(TY_I32)); }
     { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"fs_size",p,1,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"str_len",p,1,type_new(TY_I32)); }
 }
 
 void analyzer_run(Analyzer *a, ASTNode *program) {

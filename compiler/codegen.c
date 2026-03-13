@@ -796,6 +796,8 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
                     {"fs_delete",     "@__taipan_fs_delete",     "i32"},
                     {"fs_mkdir",      "@__taipan_fs_mkdir",      "i32"},
                     {"fs_size",       "@__taipan_fs_size",       "i64"},
+                    // str_len alias
+                    {"str_len", "@__taipan_str_len", "i32"},
                     {NULL, NULL, NULL}
                 };
                 int builtin_matched = 0;
@@ -1011,7 +1013,8 @@ static void cg_stmt(Codegen *cg, ASTNode *node) {
             emit(cg, "if.then.%d:\n", id);
             cg->last_was_ret = 0;
             cg_block(cg, node->as.if_stmt.then_block);
-            if (!cg->last_was_ret)
+            int then_ret = cg->last_was_ret;
+            if (!then_ret)
                 emit(cg, "  br label %%if.end.%d\n", id);
             emit(cg, "if.else.%d:\n", id);
             cg->last_was_ret = 0;
@@ -1021,10 +1024,18 @@ static void cg_stmt(Codegen *cg, ASTNode *node) {
                 else
                     cg_block(cg, node->as.if_stmt.else_block);
             }
-            if (!cg->last_was_ret)
+            int else_ret = cg->last_was_ret;
+            if (!else_ret)
                 emit(cg, "  br label %%if.end.%d\n", id);
-            cg->last_was_ret = 0;
-            emit(cg, "if.end.%d:\n", id);
+            // only emit if.end if it will be reached
+            if (!else_ret || !then_ret) {
+                emit(cg, "if.end.%d:\n", id);
+                cg->last_was_ret = 0;
+            } else {
+                // both branches returned — if.end is unreachable, skip it
+                // propagate ret upward so parent if.end is also skipped
+                cg->last_was_ret = 1;
+            }
             break;
 
             emit(cg, "if.end.%d:\n", id);

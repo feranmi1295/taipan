@@ -1,0 +1,99 @@
+use std.io
+use std.math
+use std.string
+use std.rand
+use std.time
+
+// Test recursive functions
+fn fib(n: i32) -> i32 {
+    if n <= 1 {
+        return n
+    }
+    return fib(n - 1) + fib(n - 2)
+}
+
+// Test multiple return paths
+fn grade(score: i32) -> str {
+    if score >= 90 {
+        return "A"
+    } else if score >= 80 {
+        return "B"
+    } else if score >= 70 {
+        return "C"
+    } else if score >= 60 {
+        return "D"
+    } else {
+        return "F"
+    }
+}
+
+// Test float math
+fn circle_area(r: f32) -> f32 {
+    let pi: f32 = 3.14159265
+    return pi * r * r
+}
+
+// Test string processing
+fn count_words(s: str) -> i32 {
+    let count: i32 = 0
+    let i: i32 = 0
+    let in_word: i32 = 0
+    while i < str_len(s) {
+        i += 1
+        count += 1
+    }
+    return count
+}
+
+fn main() {
+    // Fibonacci
+    println("Fibonacci:")
+    let i: i32 = 0
+    while i < 10 {
+        print(fib(i))
+        print(" ")
+        i += 1
+    }
+    println("")
+
+    // Grades
+    println("Grades:")
+    println(grade(95))
+    println(grade(83))
+    println(grade(72))
+    println(grade(61))
+    println(grade(45))
+
+    // Float math
+    println("Circle areas:")
+    let r: f32 = 1.0
+    while r < 6.0 {
+        println(circle_area(r))
+        r += 1.0
+    }
+
+    // String ops
+    println("String ops:")
+    let s: str = "Hello Taipan World"
+    println(str_upper(s))
+    println(str_lower(s))
+    println(str_contains(s, "Taipan"))
+    println(str_replace(s, "World", "Nigeria"))
+
+    // Random numbers
+    rand_seed(123)
+    println("Random ints:")
+    let j: i32 = 0
+    while j < 5 {
+        println(rand_int(1, 100))
+        j += 1
+    }
+
+    // Math
+    println("Math:")
+    println(sqrt(144.0))
+    println(pow(2.0, 8.0))
+    println(sin(0.0))
+    println(cos(0.0))
+    println(clamp_f(25.0, 0.0, 10.0))
+}
