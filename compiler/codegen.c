@@ -660,13 +660,23 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
                     snprintf(ctor_ret, sizeof(ctor_ret), "%%struct.%s*", fname);
                     int ctor_reg = next_reg(cg);
                     fprintf(cg->out, "  %%%d = call %%struct.%s* @%s__new(", ctor_reg, fname, fname);
-                    // emit args in field order
+                    // emit args in field order, default 0 for missing fields
                     int n_fields = ctor_ent->field_count;
                     int n_args   = argc;
-                    int n_emit   = n_fields < n_args ? n_fields : n_args;
-                    for (int ci = 0; ci < n_emit; ci++) {
+                    for (int ci = 0; ci < n_fields; ci++) {
                         if (ci) fprintf(cg->out, ", ");
-                        fprintf(cg->out, "%s %s", args[ci].lltype, args[ci].name);
+                        if (ci < n_args) {
+                            fprintf(cg->out, "%s %s", args[ci].lltype, args[ci].name);
+                        } else {
+                            // default: emit 0 in the field's type
+                            const char *ftype = ctor_ent->fields[ci].lltype;
+                            if (!strcmp(ftype, "float"))
+                                fprintf(cg->out, "float 0.0");
+                            else if (!strcmp(ftype, "i8*"))
+                                fprintf(cg->out, "i8* null");
+                            else
+                                fprintf(cg->out, "%s 0", ftype);
+                        }
                     }
                     fprintf(cg->out, ")\n");
                     free(args);
@@ -1245,6 +1255,9 @@ static void cg_entity(Codegen *cg, ASTNode *node) {
     emit(cg, "  %%%d = ptrtoint %%struct.%s* %%%d to i64\n", szi_reg, ent_name, sz_reg);
     int raw_reg = next_reg(cg);
     emit(cg, "  %%%d = call i8* @malloc(i64 %%%d)\n", raw_reg, szi_reg);
+    // zero the allocated memory so fields start at 0
+    int zero_reg = next_reg(cg);
+    emit(cg, "  %%%d = call i8* @memset(i8* %%%d, i32 0, i64 %%%d)\n", zero_reg, raw_reg, szi_reg);
     int self_reg = next_reg(cg);
     emit(cg, "  %%%d = bitcast i8* %%%d to %%struct.%s*\n", self_reg, raw_reg, ent_name);
 
@@ -1404,6 +1417,7 @@ void codegen_run(Codegen *cg, ASTNode *program) {
     emit(cg, "declare i32 @puts(i8*)\n");
     emit(cg, "declare i32 @printf(i8*, ...)\n");
     emit(cg, "declare i8* @malloc(i32)\n");
+    emit(cg, "declare i8* @memset(i8*, i32, i64)\n");
     emit(cg, "declare i8* @__taipan_array_new(i32, i32)\n");
     emit(cg, "declare void @free(i8*)\n");
     emit(cg, "declare i32 @__taipan_array_len(i8*)\n");

@@ -1,0 +1,70 @@
+use std.io
+use std.math
+use std.string
+
+entity Counter {
+    value: i32
+
+    fn increment() {
+        value = value + 1
+    }
+
+    fn add(n: i32) {
+        value = value + n
+    }
+
+    fn get() -> i32 {
+        return value
+    }
+
+    fn reset() {
+        value = 0
+    }
+}
+
+fn sum_arr(n: i32) -> i32 {
+    let total: i32 = 0
+    let i: i32 = 1
+    while i <= n {
+        total = total + i
+        i += 1
+    }
+    return total
+}
+
+fn main() {
+    let c: Counter = Counter()
+    c.increment()
+    c.increment()
+    c.increment()
+    println("counter after 3 increments:")
+    println(c.get())
+
+    c.add(10)
+    println("after add(10):")
+    println(c.get())
+
+    c.reset()
+    println("after reset:")
+    println(c.get())
+
+    let nums: [i32] = [10, 20, 30, 40, 50]
+    println("for-iter:")
+    for n in nums {
+        println(n)
+    }
+
+    let s: str = "  Taipan Language  "
+    let clean: str = str_trim(s)
+    let up: str = str_upper(clean)
+    println("nested string ops:")
+    println(up)
+    println(str_contains(up, "TAIPAN"))
+
+    let v: f32 = sqrt(pow(3.0, 2.0) + pow(4.0, 2.0))
+    println("sqrt(3^2 + 4^2):")
+    println(v)
+
+    println("sum 1-100:")
+    println(sum_arr(100))
+}

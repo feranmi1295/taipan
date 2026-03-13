@@ -1,0 +1,22 @@
+use std.io
+
+entity Counter {
+    value: i32
+
+    fn get() -> i32 {
+        return value
+    }
+
+    fn increment() {
+        value = value + 1
+    }
+}
+
+fn main() {
+    let c: Counter = Counter()
+    println("initial value:")
+    println(c.get())
+    c.increment()
+    println("after 1 increment:")
+    println(c.get())
+}
