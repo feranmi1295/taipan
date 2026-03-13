@@ -1,0 +1,59 @@
+use std.io
+
+fn max(a: i32, b: i32) -> i32 {
+    if a > b {
+        return a
+    }
+    return b
+}
+
+fn factorial(n: i32) -> i32 {
+    if n <= 1 {
+        return 1
+    }
+    return n * factorial(n - 1)
+}
+
+fn abs_val(x: f32) -> f32 {
+    if x < 0.0 {
+        return x * -1.0
+    }
+    return x
+}
+
+fn is_even(n: i32) -> i32 {
+    let r: i32 = n - (n / 2 * 2)
+    if r == 0 {
+        return 1
+    }
+    return 0
+}
+
+fn main() {
+    println("max(10, 42):")
+    println(max(10, 42))
+
+    println("factorial(5):")
+    println(factorial(5))
+
+    println("factorial(10):")
+    println(factorial(10))
+
+    println("abs_val(-3.14):")
+    println(abs_val(-3.14))
+
+    println("is_even(4):")
+    println(is_even(4))
+
+    println("is_even(7):")
+    println(is_even(7))
+
+    println("Evens 0-9:")
+    let i: i32 = 0
+    while i < 10 {
+        if is_even(i) {
+            println(i)
+        }
+        i += 1
+    }
+}

@@ -947,6 +947,7 @@ static void cg_stmt(Codegen *cg, ASTNode *node) {
             } else {
                 emit(cg, "  ret void\n");
             }
+            cg->last_was_ret = 1;
             break;
         }
 
@@ -963,19 +964,24 @@ static void cg_stmt(Codegen *cg, ASTNode *node) {
             }
             emit(cg, "  br i1 %s, label %%if.then.%d, label %%if.else.%d\n",
                  cond.name, id, id);
-
             emit(cg, "if.then.%d:\n", id);
+            cg->last_was_ret = 0;
             cg_block(cg, node->as.if_stmt.then_block);
-            emit(cg, "  br label %%if.end.%d\n", id);
-
+            if (!cg->last_was_ret)
+                emit(cg, "  br label %%if.end.%d\n", id);
             emit(cg, "if.else.%d:\n", id);
+            cg->last_was_ret = 0;
             if (node->as.if_stmt.else_block) {
                 if (node->as.if_stmt.else_block->type == NODE_IF)
                     cg_stmt(cg, node->as.if_stmt.else_block);
                 else
                     cg_block(cg, node->as.if_stmt.else_block);
             }
-            emit(cg, "  br label %%if.end.%d\n", id);
+            if (!cg->last_was_ret)
+                emit(cg, "  br label %%if.end.%d\n", id);
+            cg->last_was_ret = 0;
+            emit(cg, "if.end.%d:\n", id);
+            break;
 
             emit(cg, "if.end.%d:\n", id);
             break;

@@ -36,6 +36,7 @@ typedef struct {
     int      *str_ids;
     int       str_count;
     char      current_entity[64]; // set when inside entity method codegen
+    int       last_was_ret;        // 1 if last stmt in block was a return
 } Codegen;
 
 void codegen_init  (Codegen *cg, FILE *out);
