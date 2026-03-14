@@ -229,3 +229,25 @@ void   *__taipan_mutex_new    (void);
 void    __taipan_mutex_lock   (void *m);
 void    __taipan_mutex_unlock (void *m);
 void    __taipan_mutex_free   (void *m);
+
+// std.data
+void   *__taipan_data_new          (int32_t n_samples, int32_t n_features, int32_t n_labels);
+void    __taipan_data_free         (void *d);
+void    __taipan_data_set_x        (void *d, int32_t row, int32_t col, float val);
+float   __taipan_data_get_x        (void *d, int32_t row, int32_t col);
+void    __taipan_data_set_y        (void *d, int32_t row, int32_t col, float val);
+float   __taipan_data_get_y        (void *d, int32_t row, int32_t col);
+int32_t __taipan_data_n_samples    (void *d);
+int32_t __taipan_data_n_features   (void *d);
+int32_t __taipan_data_n_labels     (void *d);
+void    __taipan_data_shuffle      (void *d);
+void   *__taipan_data_batch_x      (void *d, int32_t offset, int32_t batch_size);
+void   *__taipan_data_batch_y      (void *d, int32_t offset, int32_t batch_size);
+void    __taipan_data_normalize    (void *d);
+void    __taipan_data_standardize  (void *d);
+void   *__taipan_data_split_train  (void *d, float ratio);
+void   *__taipan_data_split_test   (void *d, float ratio);
+void   *__taipan_data_load_csv     (const char *path, int32_t n_features, int32_t n_labels);
+int32_t __taipan_data_save_csv     (void *d, const char *path);
+void   *__taipan_data_get_x_tensor (void *d, int32_t row);
+void   *__taipan_data_get_y_tensor (void *d, int32_t row);

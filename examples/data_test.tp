@@ -1,0 +1,101 @@
+use std.io
+use std.data
+use std.tensor
+use std.nn
+use std.math
+
+fn main() {
+    println("=== Dataset Test ===")
+
+    // Create a simple dataset: y = x1 + x2 > 1.0 (binary classification)
+    let ds = data_new(8, 2, 1)
+
+    // Samples
+    data_set_x(ds, 0, 0, 0.1)  data_set_x(ds, 0, 1, 0.2)  data_set_y(ds, 0, 0, 0.0)
+    data_set_x(ds, 1, 0, 0.9)  data_set_x(ds, 1, 1, 0.8)  data_set_y(ds, 1, 0, 1.0)
+    data_set_x(ds, 2, 0, 0.3)  data_set_x(ds, 2, 1, 0.3)  data_set_y(ds, 2, 0, 0.0)
+    data_set_x(ds, 3, 0, 0.7)  data_set_x(ds, 3, 1, 0.6)  data_set_y(ds, 3, 0, 1.0)
+    data_set_x(ds, 4, 0, 0.2)  data_set_x(ds, 4, 1, 0.9)  data_set_y(ds, 4, 0, 1.0)
+    data_set_x(ds, 5, 0, 0.1)  data_set_x(ds, 5, 1, 0.1)  data_set_y(ds, 5, 0, 0.0)
+    data_set_x(ds, 6, 0, 0.8)  data_set_x(ds, 6, 1, 0.3)  data_set_y(ds, 6, 0, 1.0)
+    data_set_x(ds, 7, 0, 0.4)  data_set_x(ds, 7, 1, 0.4)  data_set_y(ds, 7, 0, 0.0)
+
+    println("samples:")
+    println(data_n_samples(ds))
+    println("features:")
+    println(data_n_features(ds))
+
+    // Normalize
+    data_normalize(ds)
+    println("normalized x[0][0]:")
+    println(data_get_x(ds, 0, 0))
+
+    // Train/test split
+    let train = data_split_train(ds, 0.75)
+    let test  = data_split_test(ds, 0.75)
+    println("train samples:")
+    println(data_n_samples(train))
+    println("test samples:")
+    println(data_n_samples(test))
+
+    // Save to CSV
+    data_save_csv(ds, "dataset.csv")
+    println("saved to dataset.csv")
+
+    // Train a model on the dataset
+    println("")
+    println("=== Training on dataset ===")
+    let l1 = nn_linear_new(2, 4)
+    let l2 = nn_linear_new(4, 1)
+    let opt1 = nn_adam_new(l1)
+    let opt2 = nn_adam_new(l2)
+
+    let epoch: i32 = 0
+    while epoch < 500 {
+        let total_loss: f32 = 0.0
+        nn_linear_zero_grad(l1)
+        nn_linear_zero_grad(l2)
+
+        let i: i32 = 0
+        while i < data_n_samples(train) {
+            let x = data_get_x_tensor(train, i)
+            let y = data_get_y_tensor(train, i)
+            let h  = tensor_relu(nn_linear_forward(l1, x))
+            let o  = tensor_sigmoid(nn_linear_forward(l2, h))
+            total_loss = total_loss + tensor_mse(o, y)
+            let g  = nn_mse_backward(o, y)
+            let gb = tensor_sigmoid_grad(o, g)
+            let gc = nn_linear_backward(l2, gb)
+            let gd = tensor_relu_grad(h, gc)
+            nn_linear_backward(l1, gd)
+            i += 1
+        }
+        nn_adam_step(l1, opt1, 0.01)
+        nn_adam_step(l2, opt2, 0.01)
+
+        let log: i32 = epoch - (epoch / 100 * 100)
+        if log == 0 {
+            print("epoch ")
+            print(int_to_str(epoch))
+            print(" loss: ")
+            println(total_loss)
+        }
+        epoch += 1
+    }
+
+    // Test predictions
+    println("")
+    println("=== Test Predictions ===")
+    let ti: i32 = 0
+    while ti < data_n_samples(test) {
+        let x = data_get_x_tensor(test, ti)
+        let y = data_get_y_tensor(test, ti)
+        let h = tensor_relu(nn_linear_forward(l1, x))
+        let o = tensor_sigmoid(nn_linear_forward(l2, h))
+        print("pred: ")
+        print(tensor_get(o, 0))
+        print(" target: ")
+        println(tensor_get(y, 0))
+        ti += 1
+    }
+}

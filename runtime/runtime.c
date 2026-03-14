@@ -1894,3 +1894,231 @@ void __taipan_mutex_free(void *mp) {
     pthread_mutex_destroy((pthread_mutex_t*)mp);
     free(mp);
 }
+
+// ─────────────────────────────────────────────
+//  std.data — Dataset utilities for ML
+// ─────────────────────────────────────────────
+
+typedef struct {
+    float   *X;       // features [n_samples x n_features]
+    float   *y;       // labels   [n_samples x n_labels]
+    int32_t  n_samples;
+    int32_t  n_features;
+    int32_t  n_labels;
+    int32_t *indices;  // for shuffling
+} TaipanDataset;
+
+// ── Create dataset ────────────────────────────
+void *__taipan_data_new(int32_t n_samples, int32_t n_features, int32_t n_labels) {
+    TaipanDataset *d = malloc(sizeof(TaipanDataset));
+    d->n_samples  = n_samples;
+    d->n_features = n_features;
+    d->n_labels   = n_labels;
+    d->X = calloc((size_t)(n_samples * n_features), sizeof(float));
+    d->y = calloc((size_t)(n_samples * n_labels),   sizeof(float));
+    d->indices = malloc(sizeof(int32_t) * (size_t)n_samples);
+    for (int32_t i = 0; i < n_samples; i++) d->indices[i] = i;
+    return (void*)d;
+}
+
+void __taipan_data_free(void *dp) {
+    TaipanDataset *d = (TaipanDataset*)dp;
+    if (!d) return;
+    free(d->X); free(d->y); free(d->indices); free(d);
+}
+
+// ── Set/get samples ───────────────────────────
+void __taipan_data_set_x(void *dp, int32_t row, int32_t col, float val) {
+    TaipanDataset *d = (TaipanDataset*)dp;
+    if (!d||row<0||row>=d->n_samples||col<0||col>=d->n_features) return;
+    d->X[row * d->n_features + col] = val;
+}
+float __taipan_data_get_x(void *dp, int32_t row, int32_t col) {
+    TaipanDataset *d = (TaipanDataset*)dp;
+    if (!d||row<0||row>=d->n_samples||col<0||col>=d->n_features) return 0.0f;
+    return d->X[row * d->n_features + col];
+}
+void __taipan_data_set_y(void *dp, int32_t row, int32_t col, float val) {
+    TaipanDataset *d = (TaipanDataset*)dp;
+    if (!d||row<0||row>=d->n_samples||col<0||col>=d->n_labels) return;
+    d->y[row * d->n_labels + col] = val;
+}
+float __taipan_data_get_y(void *dp, int32_t row, int32_t col) {
+    TaipanDataset *d = (TaipanDataset*)dp;
+    if (!d||row<0||row>=d->n_samples||col<0||col>=d->n_labels) return 0.0f;
+    return d->y[row * d->n_labels + col];
+}
+int32_t __taipan_data_n_samples (void *dp) { return ((TaipanDataset*)dp)->n_samples; }
+int32_t __taipan_data_n_features(void *dp) { return ((TaipanDataset*)dp)->n_features; }
+int32_t __taipan_data_n_labels  (void *dp) { return ((TaipanDataset*)dp)->n_labels; }
+
+// ── Shuffle ───────────────────────────────────
+void __taipan_data_shuffle(void *dp) {
+    TaipanDataset *d = (TaipanDataset*)dp;
+    if (!d) return;
+    for (int32_t i = d->n_samples-1; i > 0; i--) {
+        int32_t j = rand() % (i+1);
+        int32_t tmp = d->indices[i];
+        d->indices[i] = d->indices[j];
+        d->indices[j] = tmp;
+    }
+}
+
+// ── Get a batch as tensors ─────────────────────
+// Returns X tensor for batch starting at offset
+void *__taipan_data_batch_x(void *dp, int32_t offset, int32_t batch_size) {
+    TaipanDataset *d = (TaipanDataset*)dp;
+    if (!d) return NULL;
+    if (offset + batch_size > d->n_samples) batch_size = d->n_samples - offset;
+    int32_t s[2] = {batch_size, d->n_features};
+    TaipanTensor *t = __taipan_tensor_new(s, 2);
+    for (int32_t i = 0; i < batch_size; i++) {
+        int32_t idx = d->indices[offset + i];
+        for (int32_t j = 0; j < d->n_features; j++)
+            t->data[i * d->n_features + j] = d->X[idx * d->n_features + j];
+    }
+    return (void*)t;
+}
+// Returns y tensor for batch
+void *__taipan_data_batch_y(void *dp, int32_t offset, int32_t batch_size) {
+    TaipanDataset *d = (TaipanDataset*)dp;
+    if (!d) return NULL;
+    if (offset + batch_size > d->n_samples) batch_size = d->n_samples - offset;
+    int32_t s[2] = {batch_size, d->n_labels};
+    TaipanTensor *t = __taipan_tensor_new(s, 2);
+    for (int32_t i = 0; i < batch_size; i++) {
+        int32_t idx = d->indices[offset + i];
+        for (int32_t j = 0; j < d->n_labels; j++)
+            t->data[i * d->n_labels + j] = d->y[idx * d->n_labels + j];
+    }
+    return (void*)t;
+}
+
+// ── Normalization ─────────────────────────────
+// Normalize features to [0,1] per column
+void __taipan_data_normalize(void *dp) {
+    TaipanDataset *d = (TaipanDataset*)dp;
+    if (!d) return;
+    for (int32_t j = 0; j < d->n_features; j++) {
+        float mn = d->X[j], mx = d->X[j];
+        for (int32_t i = 1; i < d->n_samples; i++) {
+            float v = d->X[i * d->n_features + j];
+            if (v < mn) mn = v;
+            if (v > mx) mx = v;
+        }
+        float range = mx - mn;
+        if (range < 1e-8f) range = 1.0f;
+        for (int32_t i = 0; i < d->n_samples; i++)
+            d->X[i * d->n_features + j] = (d->X[i * d->n_features + j] - mn) / range;
+    }
+}
+
+// Standardize features to mean=0, std=1 per column
+void __taipan_data_standardize(void *dp) {
+    TaipanDataset *d = (TaipanDataset*)dp;
+    if (!d) return;
+    for (int32_t j = 0; j < d->n_features; j++) {
+        float mean = 0.0f;
+        for (int32_t i = 0; i < d->n_samples; i++)
+            mean += d->X[i * d->n_features + j];
+        mean /= (float)d->n_samples;
+        float var = 0.0f;
+        for (int32_t i = 0; i < d->n_samples; i++) {
+            float diff = d->X[i * d->n_features + j] - mean;
+            var += diff * diff;
+        }
+        var /= (float)d->n_samples;
+        float std = sqrtf(var + 1e-8f);
+        for (int32_t i = 0; i < d->n_samples; i++)
+            d->X[i * d->n_features + j] = (d->X[i * d->n_features + j] - mean) / std;
+    }
+}
+
+// ── Train/test split ──────────────────────────
+// Returns a new dataset with first split_at samples
+void *__taipan_data_split_train(void *dp, float ratio) {
+    TaipanDataset *d = (TaipanDataset*)dp;
+    if (!d) return NULL;
+    int32_t n_train = (int32_t)((float)d->n_samples * ratio);
+    TaipanDataset *train = (TaipanDataset*)__taipan_data_new(n_train, d->n_features, d->n_labels);
+    for (int32_t i = 0; i < n_train; i++) {
+        int32_t idx = d->indices[i];
+        memcpy(train->X + i*d->n_features, d->X + idx*d->n_features, sizeof(float)*(size_t)d->n_features);
+        memcpy(train->y + i*d->n_labels,   d->y + idx*d->n_labels,   sizeof(float)*(size_t)d->n_labels);
+    }
+    return (void*)train;
+}
+void *__taipan_data_split_test(void *dp, float ratio) {
+    TaipanDataset *d = (TaipanDataset*)dp;
+    if (!d) return NULL;
+    int32_t n_train = (int32_t)((float)d->n_samples * ratio);
+    int32_t n_test  = d->n_samples - n_train;
+    TaipanDataset *test = (TaipanDataset*)__taipan_data_new(n_test, d->n_features, d->n_labels);
+    for (int32_t i = 0; i < n_test; i++) {
+        int32_t idx = d->indices[n_train + i];
+        memcpy(test->X + i*d->n_features, d->X + idx*d->n_features, sizeof(float)*(size_t)d->n_features);
+        memcpy(test->y + i*d->n_labels,   d->y + idx*d->n_labels,   sizeof(float)*(size_t)d->n_labels);
+    }
+    return (void*)test;
+}
+
+// ── Load CSV ──────────────────────────────────
+// Simple CSV loader: last column = label
+void *__taipan_data_load_csv(const char *path, int32_t n_features, int32_t n_labels) {
+    FILE *f = fopen(path, "r");
+    if (!f) return NULL;
+    // Count lines
+    int32_t n = 0;
+    char line[4096];
+    while (fgets(line, sizeof(line), f)) n++;
+    rewind(f);
+    TaipanDataset *d = (TaipanDataset*)__taipan_data_new(n, n_features, n_labels);
+    int32_t row = 0;
+    while (fgets(line, sizeof(line), f) && row < n) {
+        char *tok = strtok(line, ",\n");
+        for (int32_t col = 0; col < n_features + n_labels && tok; col++) {
+            float v = (float)atof(tok);
+            if (col < n_features) d->X[row*n_features+col] = v;
+            else                  d->y[row*n_labels+(col-n_features)] = v;
+            tok = strtok(NULL, ",\n");
+        }
+        row++;
+    }
+    fclose(f);
+    return (void*)d;
+}
+
+// ── Save CSV ──────────────────────────────────
+int32_t __taipan_data_save_csv(void *dp, const char *path) {
+    TaipanDataset *d = (TaipanDataset*)dp;
+    if (!d) return -1;
+    FILE *f = fopen(path, "w");
+    if (!f) return -1;
+    for (int32_t i = 0; i < d->n_samples; i++) {
+        for (int32_t j = 0; j < d->n_features; j++) {
+            if (j) fprintf(f, ",");
+            fprintf(f, "%g", d->X[i*d->n_features+j]);
+        }
+        for (int32_t j = 0; j < d->n_labels; j++)
+            fprintf(f, ",%g", d->y[i*d->n_labels+j]);
+        fprintf(f, "\n");
+    }
+    fclose(f);
+    return 0;
+}
+
+// ── Get sample as tensor ──────────────────────
+void *__taipan_data_get_x_tensor(void *dp, int32_t row) {
+    TaipanDataset *d = (TaipanDataset*)dp;
+    if (!d||row<0||row>=d->n_samples) return NULL;
+    TaipanTensor *t = __taipan_tensor_1d(d->n_features);
+    memcpy(t->data, d->X + row*d->n_features, sizeof(float)*(size_t)d->n_features);
+    return (void*)t;
+}
+void *__taipan_data_get_y_tensor(void *dp, int32_t row) {
+    TaipanDataset *d = (TaipanDataset*)dp;
+    if (!d||row<0||row>=d->n_samples) return NULL;
+    TaipanTensor *t = __taipan_tensor_1d(d->n_labels);
+    memcpy(t->data, d->y + row*d->n_labels, sizeof(float)*(size_t)d->n_labels);
+    return (void*)t;
+}

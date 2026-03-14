@@ -939,6 +939,27 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
                     {"mutex_lock",     "@__taipan_mutex_lock",     "void"},
                     {"mutex_unlock",   "@__taipan_mutex_unlock",   "void"},
                     {"mutex_free",     "@__taipan_mutex_free",     "void"},
+                    // std.data
+                    {"data_new",          "@__taipan_data_new",          "i8*"},
+                    {"data_free",         "@__taipan_data_free",         "void"},
+                    {"data_set_x",        "@__taipan_data_set_x",        "void"},
+                    {"data_get_x",        "@__taipan_data_get_x",        "float"},
+                    {"data_set_y",        "@__taipan_data_set_y",        "void"},
+                    {"data_get_y",        "@__taipan_data_get_y",        "float"},
+                    {"data_n_samples",    "@__taipan_data_n_samples",    "i32"},
+                    {"data_n_features",   "@__taipan_data_n_features",   "i32"},
+                    {"data_n_labels",     "@__taipan_data_n_labels",     "i32"},
+                    {"data_shuffle",      "@__taipan_data_shuffle",      "void"},
+                    {"data_batch_x",      "@__taipan_data_batch_x",      "i8*"},
+                    {"data_batch_y",      "@__taipan_data_batch_y",      "i8*"},
+                    {"data_normalize",    "@__taipan_data_normalize",    "void"},
+                    {"data_standardize",  "@__taipan_data_standardize",  "void"},
+                    {"data_split_train",  "@__taipan_data_split_train",  "i8*"},
+                    {"data_split_test",   "@__taipan_data_split_test",   "i8*"},
+                    {"data_load_csv",     "@__taipan_data_load_csv",     "i8*"},
+                    {"data_save_csv",     "@__taipan_data_save_csv",     "i32"},
+                    {"data_get_x_tensor", "@__taipan_data_get_x_tensor", "i8*"},
+                    {"data_get_y_tensor", "@__taipan_data_get_y_tensor", "i8*"},
                     // str_len alias
                     {"str_len", "@__taipan_str_len", "i32"},
                     {NULL, NULL, NULL}
@@ -1800,6 +1821,27 @@ void codegen_run(Codegen *cg, ASTNode *program) {
     fputs("declare void @__taipan_mutex_lock(i8*)\n", cg->out);
     fputs("declare void @__taipan_mutex_unlock(i8*)\n", cg->out);
     fputs("declare void @__taipan_mutex_free(i8*)\n", cg->out);
+    // std.data
+    fputs("declare i8* @__taipan_data_new(i32, i32, i32)\n", cg->out);
+    fputs("declare void @__taipan_data_free(i8*)\n", cg->out);
+    fputs("declare void @__taipan_data_set_x(i8*, i32, i32, float)\n", cg->out);
+    fputs("declare float @__taipan_data_get_x(i8*, i32, i32)\n", cg->out);
+    fputs("declare void @__taipan_data_set_y(i8*, i32, i32, float)\n", cg->out);
+    fputs("declare float @__taipan_data_get_y(i8*, i32, i32)\n", cg->out);
+    fputs("declare i32 @__taipan_data_n_samples(i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_data_n_features(i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_data_n_labels(i8*)\n", cg->out);
+    fputs("declare void @__taipan_data_shuffle(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_data_batch_x(i8*, i32, i32)\n", cg->out);
+    fputs("declare i8* @__taipan_data_batch_y(i8*, i32, i32)\n", cg->out);
+    fputs("declare void @__taipan_data_normalize(i8*)\n", cg->out);
+    fputs("declare void @__taipan_data_standardize(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_data_split_train(i8*, float)\n", cg->out);
+    fputs("declare i8* @__taipan_data_split_test(i8*, float)\n", cg->out);
+    fputs("declare i8* @__taipan_data_load_csv(i8*, i32, i32)\n", cg->out);
+    fputs("declare i32 @__taipan_data_save_csv(i8*, i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_data_get_x_tensor(i8*, i32)\n", cg->out);
+    fputs("declare i8* @__taipan_data_get_y_tensor(i8*, i32)\n", cg->out);
     for (int i = 0; i < cg->str_count; i++) {
         const char *s = cg->str_literals[i];
         // Convert \n \t etc to LLVM hex escapes and count bytes
