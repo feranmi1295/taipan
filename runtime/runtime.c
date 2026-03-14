@@ -722,3 +722,199 @@ int32_t __taipan_hash(const char *s) {
     while(*s) h=((h<<5)+h)+(uint8_t)*s++;
     return (int32_t)h;
 }
+
+// ─────────────────────────────────────────────
+//  std.collections — Vector, HashMap, Set
+// ─────────────────────────────────────────────
+
+// ── Vector (dynamic array of i8* / generic via casting) ──
+typedef struct {
+    void   **data;
+    int32_t  len;
+    int32_t  cap;
+} TaipanVector;
+
+void *__taipan_vec_new(void) {
+    TaipanVector *v = malloc(sizeof(TaipanVector));
+    v->cap  = 8;
+    v->len  = 0;
+    v->data = malloc(sizeof(void*) * (size_t)v->cap);
+    return v;
+}
+int32_t __taipan_vec_push(void *vp, void *item) {
+    TaipanVector *v = (TaipanVector*)vp;
+    if (!v) return -1;
+    if (v->len >= v->cap) {
+        v->cap *= 2;
+        v->data = realloc(v->data, sizeof(void*) * (size_t)v->cap);
+    }
+    v->data[v->len++] = item;
+    return v->len;
+}
+void *__taipan_vec_get(void *vp, int32_t idx) {
+    TaipanVector *v = (TaipanVector*)vp;
+    if (!v || idx < 0 || idx >= v->len) return NULL;
+    return v->data[idx];
+}
+int32_t __taipan_vec_set(void *vp, int32_t idx, void *item) {
+    TaipanVector *v = (TaipanVector*)vp;
+    if (!v || idx < 0 || idx >= v->len) return -1;
+    v->data[idx] = item;
+    return 0;
+}
+int32_t __taipan_vec_len(void *vp) {
+    TaipanVector *v = (TaipanVector*)vp;
+    return v ? v->len : 0;
+}
+int32_t __taipan_vec_pop(void *vp) {
+    TaipanVector *v = (TaipanVector*)vp;
+    if (!v || v->len == 0) return -1;
+    v->len--;
+    return v->len;
+}
+int32_t __taipan_vec_clear(void *vp) {
+    TaipanVector *v = (TaipanVector*)vp;
+    if (!v) return -1;
+    v->len = 0;
+    return 0;
+}
+void __taipan_vec_free(void *vp) {
+    TaipanVector *v = (TaipanVector*)vp;
+    if (!v) return;
+    free(v->data);
+    free(v);
+}
+
+// ── HashMap (string keys, string values) ──────
+#define HM_BUCKETS 64
+typedef struct HMEntry {
+    char           *key;
+    char           *val;
+    struct HMEntry *next;
+} HMEntry;
+typedef struct {
+    HMEntry *buckets[HM_BUCKETS];
+    int32_t  size;
+} TaipanHashMap;
+
+static uint32_t hm_hash(const char *k) {
+    uint32_t h = 5381;
+    while (*k) h = ((h<<5)+h)+(uint8_t)*k++;
+    return h % HM_BUCKETS;
+}
+void *__taipan_hm_new(void) {
+    TaipanHashMap *m = calloc(1, sizeof(TaipanHashMap));
+    return m;
+}
+int32_t __taipan_hm_set(void *mp,  const char *key, const char *val) {
+    TaipanHashMap *m = (TaipanHashMap*)mp;
+    if (!m||!key) return -1;
+    uint32_t b = hm_hash(key);
+    HMEntry *e = m->buckets[b];
+    while (e) {
+        if (!strcmp(e->key, key)) { free(e->val); e->val=strdup(val); return 0; }
+        e = e->next;
+    }
+    HMEntry *ne = malloc(sizeof(HMEntry));
+    ne->key  = strdup(key);
+    ne->val  = strdup(val);
+    ne->next = m->buckets[b];
+    m->buckets[b] = ne;
+    m->size++;
+    return 0;
+}
+char *__taipan_hm_get(void *mp, const char *key) {
+    TaipanHashMap *m = (TaipanHashMap*)mp;
+    if (!m||!key) return strdup("");
+    uint32_t b = hm_hash(key);
+    HMEntry *e = m->buckets[b];
+    while (e) {
+        if (!strcmp(e->key, key)) return e->val;
+        e = e->next;
+    }
+    return (char*)"";
+}
+int32_t __taipan_hm_has(void *mp, const char *key) {
+    TaipanHashMap *m = (TaipanHashMap*)mp;
+    if (!m||!key) return 0;
+    uint32_t b = hm_hash(key);
+    HMEntry *e = m->buckets[b];
+    while (e) { if (!strcmp(e->key,key)) return 1; e=e->next; }
+    return 0;
+}
+int32_t __taipan_hm_delete(void *mp, const char *key) {
+    TaipanHashMap *m = (TaipanHashMap*)mp;
+    if (!m||!key) return -1;
+    uint32_t b = hm_hash(key);
+    HMEntry **ep = &m->buckets[b];
+    while (*ep) {
+        if (!strcmp((*ep)->key, key)) {
+            HMEntry *del = *ep;
+            *ep = del->next;
+            free(del->key); free(del->val); free(del);
+            m->size--;
+            return 0;
+        }
+        ep = &(*ep)->next;
+    }
+    return -1;
+}
+int32_t __taipan_hm_size(void *mp) {
+    TaipanHashMap *m = (TaipanHashMap*)mp; return m ? m->size : 0; }
+void __taipan_hm_free(void *mp) {
+    TaipanHashMap *m = (TaipanHashMap*)mp;
+    if (!m) return;
+    for (int i=0;i<HM_BUCKETS;i++) {
+        HMEntry *e=m->buckets[i];
+        while(e){HMEntry*nx=e->next;free(e->key);free(e->val);free(e);e=nx;}
+    }
+    free(m);
+}
+
+// ── Set (unique string values) ────────────────
+typedef struct SetEntry { char *val; struct SetEntry *next; } SetEntry;
+typedef struct { SetEntry *buckets[HM_BUCKETS]; int32_t size; } TaipanSet;
+
+void *__taipan_set_new(void) { return calloc(1,sizeof(TaipanSet)); }
+int32_t __taipan_set_add(void *sp, const char *val) {
+    TaipanSet *s = (TaipanSet*)sp;
+    if (!s||!val) return -1;
+    uint32_t b=hm_hash(val);
+    SetEntry *e=s->buckets[b];
+    while(e){if(!strcmp(e->val,val))return 0;e=e->next;}
+    SetEntry *ne=malloc(sizeof(SetEntry));
+    ne->val=strdup(val); ne->next=s->buckets[b]; s->buckets[b]=ne; s->size++;
+    return 1;
+}
+int32_t __taipan_set_has(void *sp, const char *val) {
+    TaipanSet *s = (TaipanSet*)sp;
+    if (!s||!val) return 0;
+    uint32_t b=hm_hash(val);
+    SetEntry *e=s->buckets[b];
+    while(e){if(!strcmp(e->val,val))return 1;e=e->next;}
+    return 0;
+}
+int32_t __taipan_set_remove(void *sp, const char *val) {
+    TaipanSet *s = (TaipanSet*)sp;
+    if (!s||!val) return -1;
+    uint32_t b=hm_hash(val);
+    SetEntry **ep=&s->buckets[b];
+    while(*ep){
+        if(!strcmp((*ep)->val,val)){
+            SetEntry *d=*ep;*ep=d->next;free(d->val);free(d);s->size--;return 0;
+        }
+        ep=&(*ep)->next;
+    }
+    return -1;
+}
+int32_t __taipan_set_size(void *sp) {
+    TaipanSet *s = (TaipanSet*)sp; return s?s->size:0; }
+void __taipan_set_free(void *sp) {
+    TaipanSet *s = (TaipanSet*)sp;
+    if(!s)return;
+    for(int i=0;i<HM_BUCKETS;i++){
+        SetEntry *e=s->buckets[i];
+        while(e){SetEntry*nx=e->next;free(e->val);free(e);e=nx;}
+    }
+    free(s);
+}

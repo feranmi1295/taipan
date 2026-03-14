@@ -1,0 +1,69 @@
+use std.io
+use std.collections
+use std.string
+
+fn main() {
+    // ── Vector ──────────────────────────────
+    println("=== Vector ===")
+    let v = vec_new()
+    vec_push(v, "Taipan")
+    vec_push(v, "Nigeria")
+    vec_push(v, "NextGen")
+    vec_push(v, "Lagos")
+
+    println("length:")
+    println(vec_len(v))
+
+    println("items:")
+    let i: i32 = 0
+    while i < vec_len(v) {
+        let item = vec_get(v, i)
+        println(item)
+        i += 1
+    }
+
+    vec_pop(v)
+    println("after pop, length:")
+    println(vec_len(v))
+
+    // ── HashMap ──────────────────────────────
+    println("=== HashMap ===")
+    let m = hm_new()
+    hm_set(m, "name", "Abiodun")
+    hm_set(m, "lang", "Taipan")
+    hm_set(m, "city", "Lagos")
+
+    println("name:")
+    println(hm_get(m, "name"))
+    println("lang:")
+    println(hm_get(m, "lang"))
+    println("has city:")
+    println(hm_has(m, "city"))
+    println("has country:")
+    println(hm_has(m, "country"))
+    println("size:")
+    println(hm_size(m))
+
+    hm_delete(m, "city")
+    println("after delete city, size:")
+    println(hm_size(m))
+
+    // ── Set ──────────────────────────────────
+    println("=== Set ===")
+    let s = set_new()
+    set_add(s, "apple")
+    set_add(s, "banana")
+    set_add(s, "apple")
+    set_add(s, "mango")
+
+    println("size (no dupes):")
+    println(set_size(s))
+    println("has apple:")
+    println(set_has(s, "apple"))
+    println("has grape:")
+    println(set_has(s, "grape"))
+
+    set_remove(s, "banana")
+    println("after remove banana, size:")
+    println(set_size(s))
+}

@@ -823,6 +823,28 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
                     {"crypto_token",        "@__taipan_crypto_token",        "i8*"},
                     {"base64_encode",       "@__taipan_base64_encode",       "i8*"},
                     {"hash",                "@__taipan_hash",                "i32"},
+                    // std.collections
+                    {"vec_new",    "@__taipan_vec_new",    "i8*"},
+                    {"vec_push",   "@__taipan_vec_push",   "i32"},
+                    {"vec_get",    "@__taipan_vec_get",    "i8*"},
+                    {"vec_set",    "@__taipan_vec_set",    "i32"},
+                    {"vec_len",    "@__taipan_vec_len",    "i32"},
+                    {"vec_pop",    "@__taipan_vec_pop",    "i32"},
+                    {"vec_clear",  "@__taipan_vec_clear",  "i32"},
+                    {"vec_free",   "@__taipan_vec_free",   "void"},
+                    {"hm_new",     "@__taipan_hm_new",     "i8*"},
+                    {"hm_set",     "@__taipan_hm_set",     "i32"},
+                    {"hm_get",     "@__taipan_hm_get",     "i8*"},
+                    {"hm_has",     "@__taipan_hm_has",     "i32"},
+                    {"hm_delete",  "@__taipan_hm_delete",  "i32"},
+                    {"hm_size",    "@__taipan_hm_size",    "i32"},
+                    {"hm_free",    "@__taipan_hm_free",    "void"},
+                    {"set_new",    "@__taipan_set_new",    "i8*"},
+                    {"set_add",    "@__taipan_set_add",    "i32"},
+                    {"set_has",    "@__taipan_set_has",    "i32"},
+                    {"set_remove", "@__taipan_set_remove", "i32"},
+                    {"set_size",   "@__taipan_set_size",   "i32"},
+                    {"set_free",   "@__taipan_set_free",   "void"},
                     // str_len alias
                     {"str_len", "@__taipan_str_len", "i32"},
                     {NULL, NULL, NULL}
@@ -1559,6 +1581,28 @@ void codegen_run(Codegen *cg, ASTNode *program) {
     fputs("declare i8* @__taipan_crypto_token(i32)\n", cg->out);
     fputs("declare i8* @__taipan_base64_encode(i8*)\n", cg->out);
     fputs("declare i32 @__taipan_hash(i8*)\n", cg->out);
+    // std.collections
+    fputs("declare i8* @__taipan_vec_new()\n", cg->out);
+    fputs("declare i32 @__taipan_vec_push(i8*, i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_vec_get(i8*, i32)\n", cg->out);
+    fputs("declare i32 @__taipan_vec_set(i8*, i32, i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_vec_len(i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_vec_pop(i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_vec_clear(i8*)\n", cg->out);
+    fputs("declare void @__taipan_vec_free(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_hm_new()\n", cg->out);
+    fputs("declare i32 @__taipan_hm_set(i8*, i8*, i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_hm_get(i8*, i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_hm_has(i8*, i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_hm_delete(i8*, i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_hm_size(i8*)\n", cg->out);
+    fputs("declare void @__taipan_hm_free(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_set_new()\n", cg->out);
+    fputs("declare i32 @__taipan_set_add(i8*, i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_set_has(i8*, i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_set_remove(i8*, i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_set_size(i8*)\n", cg->out);
+    fputs("declare void @__taipan_set_free(i8*)\n", cg->out);
     for (int i = 0; i < cg->str_count; i++) {
         const char *s = cg->str_literals[i];
         // Convert \n \t etc to LLVM hex escapes and count bytes

@@ -759,6 +759,28 @@ void analyzer_init(Analyzer *a) {
     { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); scope_define_fn(a,"crypto_token",p,1,type_new(TY_STR)); }
     { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"base64_encode",p,1,type_new(TY_STR)); }
     { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"hash",p,1,type_new(TY_I32)); }
+    // std.collections
+    { scope_define_fn(a,"vec_new",NULL,0,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); scope_define_fn(a,"vec_push",p,2,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_I32); scope_define_fn(a,"vec_get",p,2,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(3,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_I32); p[2]=type_new(TY_ANY); scope_define_fn(a,"vec_set",p,3,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"vec_len",p,1,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"vec_pop",p,1,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"vec_clear",p,1,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"vec_free",p,1,type_new(TY_VOID)); }
+    { scope_define_fn(a,"hm_new",NULL,0,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(3,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_STR); p[2]=type_new(TY_STR); scope_define_fn(a,"hm_set",p,3,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_STR); scope_define_fn(a,"hm_get",p,2,type_new(TY_STR)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_STR); scope_define_fn(a,"hm_has",p,2,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_STR); scope_define_fn(a,"hm_delete",p,2,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"hm_size",p,1,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"hm_free",p,1,type_new(TY_VOID)); }
+    { scope_define_fn(a,"set_new",NULL,0,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_STR); scope_define_fn(a,"set_add",p,2,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_STR); scope_define_fn(a,"set_has",p,2,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_STR); scope_define_fn(a,"set_remove",p,2,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"set_size",p,1,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"set_free",p,1,type_new(TY_VOID)); }
 }
 
 void analyzer_run(Analyzer *a, ASTNode *program) {

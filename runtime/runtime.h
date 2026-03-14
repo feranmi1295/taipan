@@ -152,3 +152,26 @@ char   *__taipan_crypto_random_bytes (int32_t n);
 char   *__taipan_crypto_token        (int32_t bytes);
 char   *__taipan_base64_encode       (const char *input);
 int32_t __taipan_hash                (const char *s);
+
+// std.collections (opaque i8* handles in Taipan)
+void   *__taipan_vec_new    (void);
+int32_t __taipan_vec_push   (void *v, void *item);
+void   *__taipan_vec_get    (void *v, int32_t idx);
+int32_t __taipan_vec_set    (void *v, int32_t idx, void *item);
+int32_t __taipan_vec_len    (void *v);
+int32_t __taipan_vec_pop    (void *v);
+int32_t __taipan_vec_clear  (void *v);
+void    __taipan_vec_free   (void *v);
+void   *__taipan_hm_new     (void);
+int32_t __taipan_hm_set     (void *m, const char *k, const char *v2);
+char   *__taipan_hm_get     (void *m, const char *k);
+int32_t __taipan_hm_has     (void *m, const char *k);
+int32_t __taipan_hm_delete  (void *m, const char *k);
+int32_t __taipan_hm_size    (void *m);
+void    __taipan_hm_free    (void *m);
+void   *__taipan_set_new    (void);
+int32_t __taipan_set_add    (void *s, const char *val);
+int32_t __taipan_set_has    (void *s, const char *val);
+int32_t __taipan_set_remove (void *s, const char *val);
+int32_t __taipan_set_size   (void *s);
+void    __taipan_set_free   (void *s);
