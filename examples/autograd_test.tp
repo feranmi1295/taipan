@@ -1,0 +1,101 @@
+use std.io
+use std.autograd
+use std.math
+use std.string
+
+fn main() {
+    println("=== Autograd Test ===")
+
+    // Test 1: f(x) = x^2, df/dx = 2x
+    println("=== Test 1: f(x) = x^2 ===")
+    ag_init()
+    let x: i32 = ag_leaf(3.0, 1)
+    let y: i32 = ag_mul(x, x)
+    ag_backward(y)
+    print("f(3) = 9.0, got: ")
+    println(ag_val(y))
+    print("df/dx = 6.0, got: ")
+    println(ag_grad(x))
+
+    // Test 2: f = x*w + b
+    println("")
+    println("=== Test 2: f = x*w + b ===")
+    ag_reset()
+    let xv: i32 = ag_leaf(2.0, 0)
+    let w: i32  = ag_leaf(3.0, 1)
+    let b: i32  = ag_leaf(1.0, 1)
+    let xw: i32 = ag_mul(xv, w)
+    let out: i32 = ag_add(xw, b)
+    ag_backward(out)
+    print("f = 7.0, got: ")
+    println(ag_val(out))
+    print("df/dw = 2.0, got: ")
+    println(ag_grad(w))
+    print("df/db = 1.0, got: ")
+    println(ag_grad(b))
+
+    // Test 3: sigmoid chain rule
+    println("")
+    println("=== Test 3: f = sigmoid(x*w) ===")
+    ag_reset()
+    let x3: i32 = ag_leaf(1.0, 0)
+    let w3: i32 = ag_leaf(2.0, 1)
+    let xw3: i32 = ag_mul(x3, w3)
+    let s3: i32 = ag_sigmoid_op(xw3)
+    ag_backward(s3)
+    let sv: f32 = ag_val(s3)
+    print("sigmoid(2) = 0.8808, got: ")
+    println(sv)
+    print("df/dw = 0.1050, got: ")
+    println(ag_grad(w3))
+
+    // Test 4: gradient descent training
+    // y = x*w, target = 6.0, x = 2.0 -> w* = 3.0
+    println("")
+    println("=== Test 4: gradient descent y=x*w -> target 6.0 ===")
+    let wval: f32 = 0.5
+    let lr: f32 = 0.01
+    let step: i32 = 0
+    while step < 200 {
+        ag_reset()
+        let xi: i32  = ag_leaf(2.0, 0)
+        let wi: i32  = ag_leaf(wval, 1)
+        let ti: i32  = ag_leaf(6.0, 0)
+        let pi: i32  = ag_mul(xi, wi)
+        let di: i32  = ag_sub(pi, ti)
+        let li: i32  = ag_mul(di, di)
+        ag_backward(li)
+        wval = wval - lr * ag_grad(wi)
+        let log: i32 = step - (step / 50 * 50)
+        if log == 0 {
+            print("step ")
+            print(int_to_str(step))
+            print(" w=")
+            print(wval)
+            print(" loss=")
+            let lv: f32 = ag_val(li)
+            println(lv)
+        }
+        step += 1
+    }
+    print("final w (should be ~3.0): ")
+    println(wval)
+
+    // Test 5: ReLU gradients
+    println("")
+    println("=== Test 5: ReLU gradients ===")
+    ag_reset()
+    let r1: i32 = ag_leaf(2.0, 1)
+    let r2: i32 = ag_leaf(-1.0, 1)
+    let rr1: i32 = ag_relu_op(r1)
+    let rr2: i32 = ag_relu_op(r2)
+    let rsum: i32 = ag_add(rr1, rr2)
+    ag_backward(rsum)
+    print("relu(2.0) grad = 1.0, got: ")
+    println(ag_grad(r1))
+    print("relu(-1.0) grad = 0.0, got: ")
+    println(ag_grad(r2))
+
+    println("")
+    println("=== All tests passed ===")
+}

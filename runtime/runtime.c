@@ -2648,3 +2648,390 @@ int32_t __taipan_transformer_param_count(void *tp) {
     total += v*d + v; // lm head
     return total;
 }
+
+// ─────────────────────────────────────────────
+//  std.autograd — Automatic Differentiation
+//  Reverse-mode autodiff (like PyTorch autograd)
+//  Wengert tape implementation
+// ─────────────────────────────────────────────
+
+#define AG_MAX_NODES  65536
+#define AG_MAX_INPUTS 4
+
+typedef enum {
+    AG_LEAF,    // input / parameter
+    AG_ADD,     AG_SUB,    AG_MUL,    AG_DIV,
+    AG_NEG,     AG_EXP,    AG_LOG,    AG_SQRT,
+    AG_POW,     AG_SIN,    AG_COS,    AG_TANH,
+    AG_RELU,    AG_SIGMOID,AG_MATMUL, AG_SUM,
+    AG_MEAN,    AG_RESHAPE
+} AgOp;
+
+typedef struct AgNode {
+    float    val;              // forward value
+    float    grad;             // accumulated gradient
+    AgOp     op;               // operation that created this
+    int32_t  inputs[AG_MAX_INPUTS]; // indices of input nodes
+    int32_t  n_inputs;
+    float    saved[AG_MAX_INPUTS];  // saved scalars for backward
+    int32_t  requires_grad;
+    int32_t  visited;          // for topo sort
+} AgNode;
+
+typedef struct {
+    AgNode  nodes[AG_MAX_NODES];
+    int32_t count;
+    int32_t topo[AG_MAX_NODES]; // topological order
+    int32_t topo_count;
+} AgTape;
+
+static AgTape *g_tape = NULL;
+
+// ── Tape management ───────────────────────────
+void __taipan_ag_init(void) {
+    if (!g_tape) g_tape = calloc(1, sizeof(AgTape));
+    memset(g_tape, 0, sizeof(AgTape));
+}
+
+void __taipan_ag_reset(void) {
+    if (g_tape) memset(g_tape, 0, sizeof(AgTape));
+}
+
+static int32_t ag_new_node(float val, AgOp op, int32_t req_grad) {
+    if (!g_tape || g_tape->count >= AG_MAX_NODES) return -1;
+    int32_t id = g_tape->count++;
+    AgNode *n  = &g_tape->nodes[id];
+    n->val           = val;
+    n->grad          = 0.0f;
+    n->op            = op;
+    n->n_inputs      = 0;
+    n->requires_grad = req_grad;
+    n->visited       = 0;
+    return id;
+}
+
+// ── Create leaf (parameter / input) ──────────
+int32_t __taipan_ag_leaf(float val, int32_t requires_grad) {
+    return ag_new_node(val, AG_LEAF, requires_grad);
+}
+
+float __taipan_ag_val(int32_t id) {
+    if (!g_tape || id < 0 || id >= g_tape->count) return 0.0f;
+    return g_tape->nodes[id].val;
+}
+
+float __taipan_ag_grad(int32_t id) {
+    if (!g_tape || id < 0 || id >= g_tape->count) return 0.0f;
+    return g_tape->nodes[id].grad;
+}
+
+void __taipan_ag_zero_grad(void) {
+    if (!g_tape) return;
+    for (int32_t i = 0; i < g_tape->count; i++)
+        g_tape->nodes[i].grad = 0.0f;
+}
+
+// ── Forward ops ───────────────────────────────
+#define AG_BINOP(name, OP, val_expr) \
+int32_t __taipan_ag_##name(int32_t a, int32_t b) { \
+    if (!g_tape) return -1; \
+    float av = g_tape->nodes[a].val, bv = g_tape->nodes[b].val; \
+    int32_t id = ag_new_node(val_expr, OP, \
+        g_tape->nodes[a].requires_grad || g_tape->nodes[b].requires_grad); \
+    g_tape->nodes[id].inputs[0] = a; \
+    g_tape->nodes[id].inputs[1] = b; \
+    g_tape->nodes[id].n_inputs  = 2; \
+    return id; \
+}
+
+AG_BINOP(add, AG_ADD, av + bv)
+AG_BINOP(sub, AG_SUB, av - bv)
+AG_BINOP(mul, AG_MUL, av * bv)
+AG_BINOP(div, AG_DIV, bv != 0.0f ? av/bv : 0.0f)
+
+int32_t __taipan_ag_pow(int32_t a, float exp) {
+    if (!g_tape) return -1;
+    float av = g_tape->nodes[a].val;
+    int32_t id = ag_new_node(powf(av, exp), AG_POW, g_tape->nodes[a].requires_grad);
+    g_tape->nodes[id].inputs[0] = a;
+    g_tape->nodes[id].n_inputs  = 1;
+    g_tape->nodes[id].saved[0]  = exp;
+    return id;
+}
+
+int32_t __taipan_ag_neg(int32_t a) {
+    if (!g_tape) return -1;
+    float av = g_tape->nodes[a].val;
+    int32_t id = ag_new_node(-av, AG_NEG, g_tape->nodes[a].requires_grad);
+    g_tape->nodes[id].inputs[0] = a;
+    g_tape->nodes[id].n_inputs  = 1;
+    return id;
+}
+
+int32_t __taipan_ag_exp(int32_t a) {
+    if (!g_tape) return -1;
+    float av = g_tape->nodes[a].val;
+    float ev = expf(av);
+    int32_t id = ag_new_node(ev, AG_EXP, g_tape->nodes[a].requires_grad);
+    g_tape->nodes[id].inputs[0] = a;
+    g_tape->nodes[id].n_inputs  = 1;
+    g_tape->nodes[id].saved[0]  = ev; // save exp(x) for backward
+    return id;
+}
+
+int32_t __taipan_ag_log(int32_t a) {
+    if (!g_tape) return -1;
+    float av = g_tape->nodes[a].val;
+    int32_t id = ag_new_node(logf(av + 1e-10f), AG_LOG, g_tape->nodes[a].requires_grad);
+    g_tape->nodes[id].inputs[0] = a;
+    g_tape->nodes[id].n_inputs  = 1;
+    return id;
+}
+
+int32_t __taipan_ag_sqrt_op(int32_t a) {
+    if (!g_tape) return -1;
+    float av = g_tape->nodes[a].val;
+    float sv = sqrtf(av + 1e-10f);
+    int32_t id = ag_new_node(sv, AG_SQRT, g_tape->nodes[a].requires_grad);
+    g_tape->nodes[id].inputs[0] = a;
+    g_tape->nodes[id].n_inputs  = 1;
+    g_tape->nodes[id].saved[0]  = sv;
+    return id;
+}
+
+int32_t __taipan_ag_sin_op(int32_t a) {
+    if (!g_tape) return -1;
+    float av = g_tape->nodes[a].val;
+    int32_t id = ag_new_node(sinf(av), AG_SIN, g_tape->nodes[a].requires_grad);
+    g_tape->nodes[id].inputs[0] = a;
+    g_tape->nodes[id].n_inputs  = 1;
+    return id;
+}
+
+int32_t __taipan_ag_cos_op(int32_t a) {
+    if (!g_tape) return -1;
+    float av = g_tape->nodes[a].val;
+    int32_t id = ag_new_node(cosf(av), AG_COS, g_tape->nodes[a].requires_grad);
+    g_tape->nodes[id].inputs[0] = a;
+    g_tape->nodes[id].n_inputs  = 1;
+    return id;
+}
+
+int32_t __taipan_ag_tanh_op(int32_t a) {
+    if (!g_tape) return -1;
+    float av = g_tape->nodes[a].val;
+    float tv = tanhf(av);
+    int32_t id = ag_new_node(tv, AG_TANH, g_tape->nodes[a].requires_grad);
+    g_tape->nodes[id].inputs[0] = a;
+    g_tape->nodes[id].n_inputs  = 1;
+    g_tape->nodes[id].saved[0]  = tv;
+    return id;
+}
+
+int32_t __taipan_ag_relu_op(int32_t a) {
+    if (!g_tape) return -1;
+    float av = g_tape->nodes[a].val;
+    int32_t id = ag_new_node(av > 0.0f ? av : 0.0f, AG_RELU, g_tape->nodes[a].requires_grad);
+    g_tape->nodes[id].inputs[0] = a;
+    g_tape->nodes[id].n_inputs  = 1;
+    return id;
+}
+
+int32_t __taipan_ag_sigmoid_op(int32_t a) {
+    if (!g_tape) return -1;
+    float av = g_tape->nodes[a].val;
+    float sv = 1.0f / (1.0f + expf(-av));
+    int32_t id = ag_new_node(sv, AG_SIGMOID, g_tape->nodes[a].requires_grad);
+    g_tape->nodes[id].inputs[0] = a;
+    g_tape->nodes[id].n_inputs  = 1;
+    g_tape->nodes[id].saved[0]  = sv;
+    return id;
+}
+
+// MSE loss: sum((pred - target)^2) / n
+int32_t __taipan_ag_mse(int32_t pred, int32_t target) {
+    if (!g_tape) return -1;
+    float pv = g_tape->nodes[pred].val;
+    float tv = g_tape->nodes[target].val;
+    float d  = pv - tv;
+    int32_t id = ag_new_node(d*d, AG_MUL,
+        g_tape->nodes[pred].requires_grad);
+    g_tape->nodes[id].inputs[0] = pred;
+    g_tape->nodes[id].inputs[1] = target;
+    g_tape->nodes[id].n_inputs  = 2;
+    g_tape->nodes[id].saved[0]  = d; // save diff
+    return id;
+}
+
+// ── Topological sort ──────────────────────────
+static void ag_topo_visit(int32_t id) {
+    if (!g_tape || id < 0) return;
+    AgNode *n = &g_tape->nodes[id];
+    if (n->visited) return;
+    n->visited = 1;
+    for (int32_t i = 0; i < n->n_inputs; i++)
+        ag_topo_visit(n->inputs[i]);
+    g_tape->topo[g_tape->topo_count++] = id;
+}
+
+// ── Backward pass ─────────────────────────────
+void __taipan_ag_backward(int32_t loss_id) {
+    if (!g_tape || loss_id < 0) return;
+    // Reset topo
+    g_tape->topo_count = 0;
+    for (int32_t i = 0; i < g_tape->count; i++)
+        g_tape->nodes[i].visited = 0;
+    // Build topo order
+    ag_topo_visit(loss_id);
+    // Seed gradient
+    g_tape->nodes[loss_id].grad = 1.0f;
+    // Reverse pass
+    for (int32_t ti = g_tape->topo_count - 1; ti >= 0; ti--) {
+        int32_t id = g_tape->topo[ti];
+        AgNode *n  = &g_tape->nodes[id];
+        if (!n->requires_grad) continue;
+        float g = n->grad;
+        int32_t a = n->inputs[0];
+        int32_t b = n->inputs[1];
+        float av = (a >= 0) ? g_tape->nodes[a].val : 0.0f;
+        float bv = (b >= 0) ? g_tape->nodes[b].val : 0.0f;
+        switch (n->op) {
+            case AG_LEAF: break;
+            case AG_ADD:
+                if (a >= 0) g_tape->nodes[a].grad += g;
+                if (b >= 0) g_tape->nodes[b].grad += g;
+                break;
+            case AG_SUB:
+                if (a >= 0) g_tape->nodes[a].grad += g;
+                if (b >= 0) g_tape->nodes[b].grad -= g;
+                break;
+            case AG_MUL:
+                if (a >= 0) g_tape->nodes[a].grad += g * bv;
+                if (b >= 0) g_tape->nodes[b].grad += g * av;
+                break;
+            case AG_DIV:
+                if (a >= 0) g_tape->nodes[a].grad += g / bv;
+                if (b >= 0) g_tape->nodes[b].grad -= g * av / (bv*bv);
+                break;
+            case AG_NEG:
+                if (a >= 0) g_tape->nodes[a].grad -= g;
+                break;
+            case AG_EXP:
+                if (a >= 0) g_tape->nodes[a].grad += g * n->saved[0];
+                break;
+            case AG_LOG:
+                if (a >= 0) g_tape->nodes[a].grad += g / (av + 1e-10f);
+                break;
+            case AG_SQRT:
+                if (a >= 0) g_tape->nodes[a].grad += g / (2.0f * n->saved[0] + 1e-10f);
+                break;
+            case AG_POW:
+                if (a >= 0) g_tape->nodes[a].grad += g * n->saved[0] * powf(av, n->saved[0]-1.0f);
+                break;
+            case AG_SIN:
+                if (a >= 0) g_tape->nodes[a].grad += g * cosf(av);
+                break;
+            case AG_COS:
+                if (a >= 0) g_tape->nodes[a].grad -= g * sinf(av);
+                break;
+            case AG_TANH:
+                if (a >= 0) g_tape->nodes[a].grad += g * (1.0f - n->saved[0]*n->saved[0]);
+                break;
+            case AG_RELU:
+                if (a >= 0) g_tape->nodes[a].grad += g * (av > 0.0f ? 1.0f : 0.0f);
+                break;
+            case AG_SIGMOID:
+                if (a >= 0) g_tape->nodes[a].grad += g * n->saved[0] * (1.0f - n->saved[0]);
+                break;
+            case AG_SUM: case AG_MEAN: case AG_RESHAPE: case AG_MATMUL:
+                if (a >= 0) g_tape->nodes[a].grad += g;
+                break;
+        }
+    }
+}
+
+// ── SGD update ────────────────────────────────
+void __taipan_ag_sgd_step(int32_t *params, int32_t n_params, float lr) {
+    if (!g_tape) return;
+    for (int32_t i = 0; i < n_params; i++) {
+        int32_t id = params[i];
+        if (id < 0 || id >= g_tape->count) continue;
+        g_tape->nodes[id].val -= lr * g_tape->nodes[id].grad;
+    }
+}
+
+// Update a single parameter
+void __taipan_ag_update(int32_t id, float lr) {
+    if (!g_tape || id < 0 || id >= g_tape->count) return;
+    g_tape->nodes[id].val -= lr * g_tape->nodes[id].grad;
+}
+
+// Print node info
+void __taipan_ag_print(int32_t id) {
+    if (!g_tape || id < 0 || id >= g_tape->count) return;
+    AgNode *n = &g_tape->nodes[id];
+    printf("ag[%d]: val=%.6f grad=%.6f op=%d\n", id, n->val, n->grad, (int)n->op);
+}
+
+// ── Tensor-level autograd ─────────────────────
+// Create a tracked tensor (each element is an ag node)
+void *__taipan_ag_tensor(void *tp) {
+    TaipanTensor *t = (TaipanTensor*)tp;
+    if (!g_tape || !t) return NULL;
+    // Store node ids as float (cast to int when using)
+    TaipanTensor *ids = __taipan_tensor_1d(t->size);
+    for (int32_t i = 0; i < t->size; i++)
+        ids->data[i] = (float)__taipan_ag_leaf(t->data[i], 1);
+    return (void*)ids;
+}
+
+// Element-wise add two id tensors
+void *__taipan_ag_tadd(void *ap, void *bp) {
+    TaipanTensor *a = (TaipanTensor*)ap;
+    TaipanTensor *b = (TaipanTensor*)bp;
+    if (!a || !b || a->size != b->size) return NULL;
+    TaipanTensor *out = __taipan_tensor_1d(a->size);
+    for (int32_t i = 0; i < a->size; i++)
+        out->data[i] = (float)__taipan_ag_add((int32_t)a->data[i], (int32_t)b->data[i]);
+    return (void*)out;
+}
+
+void *__taipan_ag_tmul(void *ap, void *bp) {
+    TaipanTensor *a = (TaipanTensor*)ap;
+    TaipanTensor *b = (TaipanTensor*)bp;
+    if (!a || !b || a->size != b->size) return NULL;
+    TaipanTensor *out = __taipan_tensor_1d(a->size);
+    for (int32_t i = 0; i < a->size; i++)
+        out->data[i] = (float)__taipan_ag_mul((int32_t)a->data[i], (int32_t)b->data[i]);
+    return (void*)out;
+}
+
+// Sum all ids into one loss node
+int32_t __taipan_ag_tsum(void *ids_p) {
+    TaipanTensor *ids = (TaipanTensor*)ids_p;
+    if (!ids || ids->size == 0) return -1;
+    int32_t acc = (int32_t)ids->data[0];
+    for (int32_t i = 1; i < ids->size; i++)
+        acc = __taipan_ag_add(acc, (int32_t)ids->data[i]);
+    return acc;
+}
+
+// Extract values from id tensor into a regular tensor
+void *__taipan_ag_tvals(void *ids_p) {
+    TaipanTensor *ids = (TaipanTensor*)ids_p;
+    if (!ids) return NULL;
+    TaipanTensor *out = __taipan_tensor_1d(ids->size);
+    for (int32_t i = 0; i < ids->size; i++)
+        out->data[i] = __taipan_ag_val((int32_t)ids->data[i]);
+    return (void*)out;
+}
+
+// Extract grads from id tensor into a regular tensor
+void *__taipan_ag_tgrads(void *ids_p) {
+    TaipanTensor *ids = (TaipanTensor*)ids_p;
+    if (!ids) return NULL;
+    TaipanTensor *out = __taipan_tensor_1d(ids->size);
+    for (int32_t i = 0; i < ids->size; i++)
+        out->data[i] = __taipan_ag_grad((int32_t)ids->data[i]);
+    return (void*)out;
+}

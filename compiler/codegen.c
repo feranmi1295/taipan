@@ -981,6 +981,37 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
                     {"transformer_loss",        "@__taipan_transformer_loss",        "float"},
                     {"transformer_free",        "@__taipan_transformer_free",        "void"},
                     {"transformer_param_count", "@__taipan_transformer_param_count", "i32"},
+                    // std.autograd
+                    {"ag_init",      "@__taipan_ag_init",       "void"},
+                    {"ag_reset",     "@__taipan_ag_reset",      "void"},
+                    {"ag_leaf",      "@__taipan_ag_leaf",       "i32"},
+                    {"ag_val",       "@__taipan_ag_val",        "float"},
+                    {"ag_grad",      "@__taipan_ag_grad",       "float"},
+                    {"ag_zero_grad", "@__taipan_ag_zero_grad",  "void"},
+                    {"ag_add",       "@__taipan_ag_add",        "i32"},
+                    {"ag_sub",       "@__taipan_ag_sub",        "i32"},
+                    {"ag_mul",       "@__taipan_ag_mul",        "i32"},
+                    {"ag_div",       "@__taipan_ag_div",        "i32"},
+                    {"ag_pow",       "@__taipan_ag_pow",        "i32"},
+                    {"ag_neg",       "@__taipan_ag_neg",        "i32"},
+                    {"ag_exp",       "@__taipan_ag_exp",        "i32"},
+                    {"ag_log",       "@__taipan_ag_log",        "i32"},
+                    {"ag_sqrt_op",   "@__taipan_ag_sqrt_op",    "i32"},
+                    {"ag_sin_op",    "@__taipan_ag_sin_op",     "i32"},
+                    {"ag_cos_op",    "@__taipan_ag_cos_op",     "i32"},
+                    {"ag_tanh_op",   "@__taipan_ag_tanh_op",    "i32"},
+                    {"ag_relu_op",   "@__taipan_ag_relu_op",    "i32"},
+                    {"ag_sigmoid_op","@__taipan_ag_sigmoid_op", "i32"},
+                    {"ag_mse",       "@__taipan_ag_mse",        "i32"},
+                    {"ag_backward",  "@__taipan_ag_backward",   "void"},
+                    {"ag_update",    "@__taipan_ag_update",     "void"},
+                    {"ag_print",     "@__taipan_ag_print",      "void"},
+                    {"ag_tensor",    "@__taipan_ag_tensor",     "i8*"},
+                    {"ag_tadd",      "@__taipan_ag_tadd",       "i8*"},
+                    {"ag_tmul",      "@__taipan_ag_tmul",       "i8*"},
+                    {"ag_tsum",      "@__taipan_ag_tsum",       "i32"},
+                    {"ag_tvals",     "@__taipan_ag_tvals",      "i8*"},
+                    {"ag_tgrads",    "@__taipan_ag_tgrads",     "i8*"},
                     // str_len alias
                     {"str_len", "@__taipan_str_len", "i32"},
                     {NULL, NULL, NULL}
@@ -1884,6 +1915,37 @@ void codegen_run(Codegen *cg, ASTNode *program) {
     fputs("declare float @__taipan_transformer_loss(i8*, i8*)\n", cg->out);
     fputs("declare void @__taipan_transformer_free(i8*)\n", cg->out);
     fputs("declare i32 @__taipan_transformer_param_count(i8*)\n", cg->out);
+    // std.autograd
+    fputs("declare void @__taipan_ag_init()\n", cg->out);
+    fputs("declare void @__taipan_ag_reset()\n", cg->out);
+    fputs("declare i32 @__taipan_ag_leaf(float, i32)\n", cg->out);
+    fputs("declare float @__taipan_ag_val(i32)\n", cg->out);
+    fputs("declare float @__taipan_ag_grad(i32)\n", cg->out);
+    fputs("declare void @__taipan_ag_zero_grad()\n", cg->out);
+    fputs("declare i32 @__taipan_ag_add(i32, i32)\n", cg->out);
+    fputs("declare i32 @__taipan_ag_sub(i32, i32)\n", cg->out);
+    fputs("declare i32 @__taipan_ag_mul(i32, i32)\n", cg->out);
+    fputs("declare i32 @__taipan_ag_div(i32, i32)\n", cg->out);
+    fputs("declare i32 @__taipan_ag_pow(i32, float)\n", cg->out);
+    fputs("declare i32 @__taipan_ag_neg(i32)\n", cg->out);
+    fputs("declare i32 @__taipan_ag_exp(i32)\n", cg->out);
+    fputs("declare i32 @__taipan_ag_log(i32)\n", cg->out);
+    fputs("declare i32 @__taipan_ag_sqrt_op(i32)\n", cg->out);
+    fputs("declare i32 @__taipan_ag_sin_op(i32)\n", cg->out);
+    fputs("declare i32 @__taipan_ag_cos_op(i32)\n", cg->out);
+    fputs("declare i32 @__taipan_ag_tanh_op(i32)\n", cg->out);
+    fputs("declare i32 @__taipan_ag_relu_op(i32)\n", cg->out);
+    fputs("declare i32 @__taipan_ag_sigmoid_op(i32)\n", cg->out);
+    fputs("declare i32 @__taipan_ag_mse(i32, i32)\n", cg->out);
+    fputs("declare void @__taipan_ag_backward(i32)\n", cg->out);
+    fputs("declare void @__taipan_ag_update(i32, float)\n", cg->out);
+    fputs("declare void @__taipan_ag_print(i32)\n", cg->out);
+    fputs("declare i8* @__taipan_ag_tensor(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_ag_tadd(i8*, i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_ag_tmul(i8*, i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_ag_tsum(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_ag_tvals(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_ag_tgrads(i8*)\n", cg->out);
     for (int i = 0; i < cg->str_count; i++) {
         const char *s = cg->str_literals[i];
         // Convert \n \t etc to LLVM hex escapes and count bytes
