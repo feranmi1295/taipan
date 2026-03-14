@@ -1,0 +1,155 @@
+use std.io
+use std.tensor
+use std.nn
+use std.math
+
+fn main() {
+    println("=== XOR Neural Network ===")
+    println("Architecture: 2 -> 4 -> 1")
+    println("Optimizer: Adam")
+    println("")
+
+    // Network: 2 inputs -> 4 hidden -> 1 output
+    let l1 = nn_linear_new(2, 4)
+    let l2 = nn_linear_new(4, 1)
+    let opt1 = nn_adam_new(l1)
+    let opt2 = nn_adam_new(l2)
+
+    // XOR dataset
+    // inputs: [0,0], [0,1], [1,0], [1,1]
+    // targets:  0      1      1      0
+
+    let epoch: i32 = 0
+    let lr: f32 = 0.01
+
+    while epoch < 1000 {
+        let total_loss: f32 = 0.0
+
+        // Sample 1: [0,0] -> 0
+        let x1 = tensor_1d(2)
+        tensor_set(x1, 0, 0.0)
+        tensor_set(x1, 1, 0.0)
+        let y1 = tensor_1d(1)
+        tensor_set(y1, 0, 0.0)
+
+        // Sample 2: [0,1] -> 1
+        let x2 = tensor_1d(2)
+        tensor_set(x2, 0, 0.0)
+        tensor_set(x2, 1, 1.0)
+        let y2 = tensor_1d(1)
+        tensor_set(y2, 0, 1.0)
+
+        // Sample 3: [1,0] -> 1
+        let x3 = tensor_1d(2)
+        tensor_set(x3, 0, 1.0)
+        tensor_set(x3, 1, 0.0)
+        let y3 = tensor_1d(1)
+        tensor_set(y3, 0, 1.0)
+
+        // Sample 4: [1,1] -> 0
+        let x4 = tensor_1d(2)
+        tensor_set(x4, 0, 1.0)
+        tensor_set(x4, 1, 1.0)
+        let y4 = tensor_1d(1)
+        tensor_set(y4, 0, 0.0)
+
+        // Zero grads
+        nn_linear_zero_grad(l1)
+        nn_linear_zero_grad(l2)
+
+        // Forward + backward for each sample
+        // Sample 1
+        let h1 = nn_linear_forward(l1, x1)
+        let h1a = tensor_relu(h1)
+        let o1 = nn_linear_forward(l2, h1a)
+        let o1s = tensor_sigmoid(o1)
+        total_loss = total_loss + tensor_mse(o1s, y1)
+        let g1 = nn_mse_backward(o1s, y1)
+        let g1b = tensor_sigmoid_grad(o1s, g1)
+        let g1c = nn_linear_backward(l2, g1b)
+        let g1d = tensor_relu_grad(h1, g1c)
+        nn_linear_backward(l1, g1d)
+
+        // Sample 2
+        let h2 = nn_linear_forward(l1, x2)
+        let h2a = tensor_relu(h2)
+        let o2 = nn_linear_forward(l2, h2a)
+        let o2s = tensor_sigmoid(o2)
+        total_loss = total_loss + tensor_mse(o2s, y2)
+        let g2 = nn_mse_backward(o2s, y2)
+        let g2b = tensor_sigmoid_grad(o2s, g2)
+        let g2c = nn_linear_backward(l2, g2b)
+        let g2d = tensor_relu_grad(h2, g2c)
+        nn_linear_backward(l1, g2d)
+
+        // Sample 3
+        let h3 = nn_linear_forward(l1, x3)
+        let h3a = tensor_relu(h3)
+        let o3 = nn_linear_forward(l2, h3a)
+        let o3s = tensor_sigmoid(o3)
+        total_loss = total_loss + tensor_mse(o3s, y3)
+        let g3 = nn_mse_backward(o3s, y3)
+        let g3b = tensor_sigmoid_grad(o3s, g3)
+        let g3c = nn_linear_backward(l2, g3b)
+        let g3d = tensor_relu_grad(h3, g3c)
+        nn_linear_backward(l1, g3d)
+
+        // Sample 4
+        let h4 = nn_linear_forward(l1, x4)
+        let h4a = tensor_relu(h4)
+        let o4 = nn_linear_forward(l2, h4a)
+        let o4s = tensor_sigmoid(o4)
+        total_loss = total_loss + tensor_mse(o4s, y4)
+        let g4 = nn_mse_backward(o4s, y4)
+        let g4b = tensor_sigmoid_grad(o4s, g4)
+        let g4c = nn_linear_backward(l2, g4b)
+        let g4d = tensor_relu_grad(h4, g4c)
+        nn_linear_backward(l1, g4d)
+
+        // Adam step
+        nn_adam_step(l1, opt1, lr)
+        nn_adam_step(l2, opt2, lr)
+
+        // Log every 100 epochs
+        let log: i32 = epoch - (epoch / 100 * 100)
+        if log == 0 {
+            print("epoch ")
+            print(int_to_str(epoch))
+            print(" loss: ")
+            println(total_loss)
+        }
+
+        epoch += 1
+    }
+
+    println("")
+    println("=== Final Predictions ===")
+
+    let tx1 = tensor_1d(2)
+    tensor_set(tx1, 0, 0.0)
+    tensor_set(tx1, 1, 0.0)
+    let r1 = tensor_sigmoid(nn_linear_forward(l2, tensor_relu(nn_linear_forward(l1, tx1))))
+    print("[0,0] -> ")
+    println(tensor_get(r1, 0))
+
+    let tx2 = tensor_1d(2)
+    tensor_set(tx2, 0, 0.0)
+    tensor_set(tx2, 1, 1.0)
+    let r2 = tensor_sigmoid(nn_linear_forward(l2, tensor_relu(nn_linear_forward(l1, tx2))))
+    print("[0,1] -> ")
+    println(tensor_get(r2, 0))
+
+    let tx3 = tensor_1d(2)
+    tensor_set(tx3, 0, 1.0)
+    tensor_set(tx3, 1, 0.0)
+    let r3 = tensor_sigmoid(nn_linear_forward(l2, tensor_relu(nn_linear_forward(l1, tx3))))
+    print("[1,0] -> ")
+    println(tensor_get(r3, 0))
+
+    let tx4 = tensor_1d(2)
+    tensor_set(tx4, 0, 1.0)
+    tensor_set(tx4, 1, 1.0)
+    let r4 = tensor_sigmoid(nn_linear_forward(l2, tensor_relu(nn_linear_forward(l1, tx4))))
+    print("[1,1] -> ")
+    println(tensor_get(r4, 0))
+}

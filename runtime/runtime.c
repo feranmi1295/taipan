@@ -1256,3 +1256,172 @@ TaipanTensor *__taipan_tensor_load(const char *path) {
     fclose(f);
     return t;
 }
+
+// ─────────────────────────────────────────────
+//  std.nn — Neural Network layers
+// ─────────────────────────────────────────────
+
+// ── Linear Layer ─────────────────────────────
+// y = x @ W^T + b
+typedef struct {
+    TaipanTensor *W;      // weights [out x in]
+    TaipanTensor *b;      // bias    [out]
+    TaipanTensor *dW;     // weight gradients
+    TaipanTensor *db;     // bias gradients
+    TaipanTensor *input;  // cached input for backprop
+    int32_t       in_features;
+    int32_t       out_features;
+} TaipanLinear;
+
+void *__taipan_nn_linear_new(int32_t in_features, int32_t out_features) {
+    TaipanLinear *l = malloc(sizeof(TaipanLinear));
+    l->in_features  = in_features;
+    l->out_features = out_features;
+    l->W     = __taipan_tensor_2d(out_features, in_features);
+    l->b     = __taipan_tensor_1d(out_features);
+    l->dW    = __taipan_tensor_2d(out_features, in_features);
+    l->db    = __taipan_tensor_1d(out_features);
+    l->input = NULL;
+    // Xavier init
+    float limit = sqrtf(6.0f / (float)(in_features + out_features));
+    for (int32_t i = 0; i < l->W->size; i++)
+        l->W->data[i] = ((float)rand()/(float)RAND_MAX)*2.0f*limit - limit;
+    __taipan_tensor_zeros(l->b);
+    return (void*)l;
+}
+
+// Forward: input [in] -> output [out]
+void *__taipan_nn_linear_forward(void *lp, void *xp) {
+    TaipanLinear *l = (TaipanLinear*)lp;
+    TaipanTensor *x = (TaipanTensor*)xp;
+    // cache input
+    if (l->input) __taipan_tensor_free(l->input);
+    l->input = __taipan_tensor_copy(x);
+    // y = W @ x + b
+    TaipanTensor *out = __taipan_tensor_1d(l->out_features);
+    for (int32_t i = 0; i < l->out_features; i++) {
+        float sum = l->b->data[i];
+        for (int32_t j = 0; j < l->in_features; j++)
+            sum += l->W->data[i * l->in_features + j] * x->data[j];
+        out->data[i] = sum;
+    }
+    return (void*)out;
+}
+
+// Backward: grad_out [out] -> grad_in [in], updates dW, db
+void *__taipan_nn_linear_backward(void *lp, void *gp) {
+    TaipanLinear *l  = (TaipanLinear*)lp;
+    TaipanTensor *go = (TaipanTensor*)gp;
+    // db = grad_out
+    for (int32_t i = 0; i < l->out_features; i++)
+        l->db->data[i] += go->data[i];
+    // dW = grad_out outer input
+    for (int32_t i = 0; i < l->out_features; i++)
+        for (int32_t j = 0; j < l->in_features; j++)
+            l->dW->data[i*l->in_features+j] += go->data[i] * l->input->data[j];
+    // grad_in = W^T @ grad_out
+    TaipanTensor *gi = __taipan_tensor_1d(l->in_features);
+    for (int32_t j = 0; j < l->in_features; j++) {
+        float sum = 0.0f;
+        for (int32_t i = 0; i < l->out_features; i++)
+            sum += l->W->data[i*l->in_features+j] * go->data[i];
+        gi->data[j] = sum;
+    }
+    return (void*)gi;
+}
+
+void __taipan_nn_linear_zero_grad(void *lp) {
+    TaipanLinear *l = (TaipanLinear*)lp;
+    __taipan_tensor_zeros(l->dW);
+    __taipan_tensor_zeros(l->db);
+}
+
+void __taipan_nn_linear_free(void *lp) {
+    TaipanLinear *l = (TaipanLinear*)lp;
+    __taipan_tensor_free(l->W);
+    __taipan_tensor_free(l->b);
+    __taipan_tensor_free(l->dW);
+    __taipan_tensor_free(l->db);
+    if (l->input) __taipan_tensor_free(l->input);
+    free(l);
+}
+
+// Get weights/bias for inspection
+void *__taipan_nn_linear_weights(void *lp) { return ((TaipanLinear*)lp)->W; }
+void *__taipan_nn_linear_bias(void *lp)    { return ((TaipanLinear*)lp)->b; }
+void *__taipan_nn_linear_dw(void *lp)      { return ((TaipanLinear*)lp)->dW; }
+void *__taipan_nn_linear_db(void *lp)      { return ((TaipanLinear*)lp)->db; }
+
+// ── SGD Optimizer ─────────────────────────────
+void __taipan_nn_sgd_step(void *lp, float lr) {
+    TaipanLinear *l = (TaipanLinear*)lp;
+    for (int32_t i = 0; i < l->W->size; i++)
+        l->W->data[i] -= lr * l->dW->data[i];
+    for (int32_t i = 0; i < l->b->size; i++)
+        l->b->data[i] -= lr * l->db->data[i];
+}
+
+// ── Adam Optimizer ────────────────────────────
+typedef struct {
+    TaipanTensor *mW, *vW;  // moment estimates for W
+    TaipanTensor *mb, *vb;  // moment estimates for b
+    int32_t       step;
+} TaipanAdam;
+
+void *__taipan_nn_adam_new(void *lp) {
+    TaipanLinear *l = (TaipanLinear*)lp;
+    TaipanAdam *a = calloc(1, sizeof(TaipanAdam));
+    a->mW   = __taipan_tensor_2d(l->out_features, l->in_features);
+    a->vW   = __taipan_tensor_2d(l->out_features, l->in_features);
+    a->mb   = __taipan_tensor_1d(l->out_features);
+    a->vb   = __taipan_tensor_1d(l->out_features);
+    a->step = 0;
+    return (void*)a;
+}
+
+void __taipan_nn_adam_step(void *lp, void *ap, float lr) {
+    TaipanLinear *l = (TaipanLinear*)lp;
+    TaipanAdam   *a = (TaipanAdam*)ap;
+    float beta1=0.9f, beta2=0.999f, eps=1e-8f;
+    a->step++;
+    float bc1 = 1.0f - powf(beta1, (float)a->step);
+    float bc2 = 1.0f - powf(beta2, (float)a->step);
+    // Update W
+    for (int32_t i = 0; i < l->W->size; i++) {
+        float g = l->dW->data[i];
+        a->mW->data[i] = beta1*a->mW->data[i] + (1-beta1)*g;
+        a->vW->data[i] = beta2*a->vW->data[i] + (1-beta2)*g*g;
+        float mh = a->mW->data[i]/bc1;
+        float vh = a->vW->data[i]/bc2;
+        l->W->data[i] -= lr * mh / (sqrtf(vh) + eps);
+    }
+    // Update b
+    for (int32_t i = 0; i < l->b->size; i++) {
+        float g = l->db->data[i];
+        a->mb->data[i] = beta1*a->mb->data[i] + (1-beta1)*g;
+        a->vb->data[i] = beta2*a->vb->data[i] + (1-beta2)*g*g;
+        float mh = a->mb->data[i]/bc1;
+        float vh = a->vb->data[i]/bc2;
+        l->b->data[i] -= lr * mh / (sqrtf(vh) + eps);
+    }
+}
+
+void __taipan_nn_adam_free(void *ap) {
+    TaipanAdam *a = (TaipanAdam*)ap;
+    __taipan_tensor_free(a->mW);
+    __taipan_tensor_free(a->vW);
+    __taipan_tensor_free(a->mb);
+    __taipan_tensor_free(a->vb);
+    free(a);
+}
+
+// ── MSE backward ─────────────────────────────
+void *__taipan_nn_mse_backward(void *pred, void *target) {
+    TaipanTensor *p = (TaipanTensor*)pred;
+    TaipanTensor *t = (TaipanTensor*)target;
+    TaipanTensor *g = __taipan_tensor_1d(p->size);
+    float scale = 2.0f / (float)p->size;
+    for (int32_t i = 0; i < p->size; i++)
+        g->data[i] = scale * (p->data[i] - t->data[i]);
+    return (void*)g;
+}

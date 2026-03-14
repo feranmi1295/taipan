@@ -887,6 +887,21 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
                     {"tensor_print",       "@__taipan_tensor_print",       "void"},
                     {"tensor_save",        "@__taipan_tensor_save",        "i32"},
                     {"tensor_load",        "@__taipan_tensor_load",        "i8*"},
+                    // std.nn
+                    {"nn_linear_new",       "@__taipan_nn_linear_new",       "i8*"},
+                    {"nn_linear_forward",   "@__taipan_nn_linear_forward",   "i8*"},
+                    {"nn_linear_backward",  "@__taipan_nn_linear_backward",  "i8*"},
+                    {"nn_linear_zero_grad", "@__taipan_nn_linear_zero_grad", "void"},
+                    {"nn_linear_free",      "@__taipan_nn_linear_free",      "void"},
+                    {"nn_linear_weights",   "@__taipan_nn_linear_weights",   "i8*"},
+                    {"nn_linear_bias",      "@__taipan_nn_linear_bias",      "i8*"},
+                    {"nn_linear_dw",        "@__taipan_nn_linear_dw",        "i8*"},
+                    {"nn_linear_db",        "@__taipan_nn_linear_db",        "i8*"},
+                    {"nn_sgd_step",         "@__taipan_nn_sgd_step",         "void"},
+                    {"nn_adam_new",         "@__taipan_nn_adam_new",         "i8*"},
+                    {"nn_adam_step",        "@__taipan_nn_adam_step",        "void"},
+                    {"nn_adam_free",        "@__taipan_nn_adam_free",        "void"},
+                    {"nn_mse_backward",     "@__taipan_nn_mse_backward",     "i8*"},
                     // str_len alias
                     {"str_len", "@__taipan_str_len", "i32"},
                     {NULL, NULL, NULL}
@@ -1696,6 +1711,21 @@ void codegen_run(Codegen *cg, ASTNode *program) {
     fputs("declare void @__taipan_tensor_print(i8*)\n", cg->out);
     fputs("declare i32 @__taipan_tensor_save(i8*, i8*)\n", cg->out);
     fputs("declare i8* @__taipan_tensor_load(i8*)\n", cg->out);
+    // std.nn
+    fputs("declare i8* @__taipan_nn_linear_new(i32, i32)\n", cg->out);
+    fputs("declare i8* @__taipan_nn_linear_forward(i8*, i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_nn_linear_backward(i8*, i8*)\n", cg->out);
+    fputs("declare void @__taipan_nn_linear_zero_grad(i8*)\n", cg->out);
+    fputs("declare void @__taipan_nn_linear_free(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_nn_linear_weights(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_nn_linear_bias(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_nn_linear_dw(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_nn_linear_db(i8*)\n", cg->out);
+    fputs("declare void @__taipan_nn_sgd_step(i8*, float)\n", cg->out);
+    fputs("declare i8* @__taipan_nn_adam_new(i8*)\n", cg->out);
+    fputs("declare void @__taipan_nn_adam_step(i8*, i8*, float)\n", cg->out);
+    fputs("declare void @__taipan_nn_adam_free(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_nn_mse_backward(i8*, i8*)\n", cg->out);
     for (int i = 0; i < cg->str_count; i++) {
         const char *s = cg->str_literals[i];
         // Convert \n \t etc to LLVM hex escapes and count bytes
