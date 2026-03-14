@@ -851,6 +851,30 @@ void analyzer_init(Analyzer *a) {
     { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"chan_recv",p,1,type_new(TY_STR)); }
     { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"chan_len",p,1,type_new(TY_I32)); }
     { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"chan_free",p,1,type_new(TY_VOID)); }
+    // std.json
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"json_parse",p,1,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"json_stringify",p,1,type_new(TY_STR)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"json_free",p,1,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_STR); scope_define_fn(a,"json_get_str",p,2,type_new(TY_STR)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_STR); scope_define_fn(a,"json_get_int",p,2,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_STR); scope_define_fn(a,"json_get_float",p,2,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"json_array_len",p,1,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_I32); scope_define_fn(a,"json_array_get",p,2,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"json_to_str",p,1,type_new(TY_STR)); }
+    { scope_define_fn(a,"json_object_new",NULL,0,type_new(TY_ANY)); }
+    { scope_define_fn(a,"json_array_new",NULL,0,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(3,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_STR); p[2]=type_new(TY_STR); scope_define_fn(a,"json_set_str",p,3,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(3,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_STR); p[2]=type_new(TY_I32); scope_define_fn(a,"json_set_int",p,3,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); scope_define_fn(a,"json_array_push",p,2,type_new(TY_VOID)); }
+    // std.thread
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"thread_spawn",p,1,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); scope_define_fn(a,"thread_join",p,1,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); scope_define_fn(a,"thread_sleep",p,1,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); scope_define_fn(a,"thread_done",p,1,type_new(TY_I32)); }
+    { scope_define_fn(a,"mutex_new",NULL,0,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"mutex_lock",p,1,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"mutex_unlock",p,1,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"mutex_free",p,1,type_new(TY_VOID)); }
 }
 
 void analyzer_run(Analyzer *a, ASTNode *program) {

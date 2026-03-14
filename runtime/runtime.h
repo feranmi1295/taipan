@@ -203,3 +203,29 @@ int32_t __taipan_chan_send    (void *c, const char *msg);
 char   *__taipan_chan_recv    (void *c);
 int32_t __taipan_chan_len     (void *c);
 void    __taipan_chan_free    (void *c);
+
+// std.json
+void   *__taipan_json_parse      (const char *input);
+char   *__taipan_json_stringify  (void *n);
+void    __taipan_json_free       (void *n);
+char   *__taipan_json_get_str    (void *n, const char *key);
+int32_t __taipan_json_get_int    (void *n, const char *key);
+float   __taipan_json_get_float  (void *n, const char *key);
+int32_t __taipan_json_array_len  (void *n);
+void   *__taipan_json_array_get  (void *n, int32_t idx);
+char   *__taipan_json_to_str     (void *n);
+void   *__taipan_json_object_new (void);
+void   *__taipan_json_array_new2 (void);
+void    __taipan_json_set_str    (void *n, const char *key, const char *val);
+void    __taipan_json_set_int    (void *n, const char *key, int32_t val);
+void    __taipan_json_array_push2(void *n, void *item);
+
+// std.thread
+int32_t __taipan_thread_spawn (void (*fn)(void));
+void    __taipan_thread_join  (int32_t id);
+void    __taipan_thread_sleep (int32_t ms);
+int32_t __taipan_thread_done  (int32_t id);
+void   *__taipan_mutex_new    (void);
+void    __taipan_mutex_lock   (void *m);
+void    __taipan_mutex_unlock (void *m);
+void    __taipan_mutex_free   (void *m);

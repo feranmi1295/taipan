@@ -915,6 +915,30 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
                     {"chan_recv",    "@__taipan_chan_recv",    "i8*"},
                     {"chan_len",     "@__taipan_chan_len",     "i32"},
                     {"chan_free",    "@__taipan_chan_free",    "void"},
+                    // std.json
+                    {"json_parse",       "@__taipan_json_parse",       "i8*"},
+                    {"json_stringify",   "@__taipan_json_stringify",   "i8*"},
+                    {"json_free",        "@__taipan_json_free",        "void"},
+                    {"json_get_str",     "@__taipan_json_get_str",     "i8*"},
+                    {"json_get_int",     "@__taipan_json_get_int",     "i32"},
+                    {"json_get_float",   "@__taipan_json_get_float",   "float"},
+                    {"json_array_len",   "@__taipan_json_array_len",   "i32"},
+                    {"json_array_get",   "@__taipan_json_array_get",   "i8*"},
+                    {"json_to_str",      "@__taipan_json_to_str",      "i8*"},
+                    {"json_object_new",  "@__taipan_json_object_new",  "i8*"},
+                    {"json_array_new",   "@__taipan_json_array_new2",  "i8*"},
+                    {"json_set_str",     "@__taipan_json_set_str",     "void"},
+                    {"json_set_int",     "@__taipan_json_set_int",     "void"},
+                    {"json_array_push",  "@__taipan_json_array_push2", "void"},
+                    // std.thread
+                    {"thread_spawn",   "@__taipan_thread_spawn",   "i32"},
+                    {"thread_join",    "@__taipan_thread_join",    "void"},
+                    {"thread_sleep",   "@__taipan_thread_sleep",   "void"},
+                    {"thread_done",    "@__taipan_thread_done",    "i32"},
+                    {"mutex_new",      "@__taipan_mutex_new",      "i8*"},
+                    {"mutex_lock",     "@__taipan_mutex_lock",     "void"},
+                    {"mutex_unlock",   "@__taipan_mutex_unlock",   "void"},
+                    {"mutex_free",     "@__taipan_mutex_free",     "void"},
                     // str_len alias
                     {"str_len", "@__taipan_str_len", "i32"},
                     {NULL, NULL, NULL}
@@ -1752,6 +1776,30 @@ void codegen_run(Codegen *cg, ASTNode *program) {
     fputs("declare i8* @__taipan_chan_recv(i8*)\n", cg->out);
     fputs("declare i32 @__taipan_chan_len(i8*)\n", cg->out);
     fputs("declare void @__taipan_chan_free(i8*)\n", cg->out);
+    // std.json
+    fputs("declare i8* @__taipan_json_parse(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_json_stringify(i8*)\n", cg->out);
+    fputs("declare void @__taipan_json_free(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_json_get_str(i8*, i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_json_get_int(i8*, i8*)\n", cg->out);
+    fputs("declare float @__taipan_json_get_float(i8*, i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_json_array_len(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_json_array_get(i8*, i32)\n", cg->out);
+    fputs("declare i8* @__taipan_json_to_str(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_json_object_new()\n", cg->out);
+    fputs("declare i8* @__taipan_json_array_new2()\n", cg->out);
+    fputs("declare void @__taipan_json_set_str(i8*, i8*, i8*)\n", cg->out);
+    fputs("declare void @__taipan_json_set_int(i8*, i8*, i32)\n", cg->out);
+    fputs("declare void @__taipan_json_array_push2(i8*, i8*)\n", cg->out);
+    // std.thread
+    fputs("declare i32 @__taipan_thread_spawn(i8*)\n", cg->out);
+    fputs("declare void @__taipan_thread_join(i32)\n", cg->out);
+    fputs("declare void @__taipan_thread_sleep(i32)\n", cg->out);
+    fputs("declare i32 @__taipan_thread_done(i32)\n", cg->out);
+    fputs("declare i8* @__taipan_mutex_new()\n", cg->out);
+    fputs("declare void @__taipan_mutex_lock(i8*)\n", cg->out);
+    fputs("declare void @__taipan_mutex_unlock(i8*)\n", cg->out);
+    fputs("declare void @__taipan_mutex_free(i8*)\n", cg->out);
     for (int i = 0; i < cg->str_count; i++) {
         const char *s = cg->str_literals[i];
         // Convert \n \t etc to LLVM hex escapes and count bytes

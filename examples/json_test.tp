@@ -1,0 +1,54 @@
+use std.io
+use std.json
+use std.string
+
+fn main() {
+    // Parse JSON
+    println("=== JSON Parse ===")
+    let raw: str = "{\"name\":\"Abiodun\",\"age\":20,\"city\":\"Lagos\",\"lang\":\"Taipan\"}"
+    let obj = json_parse(raw)
+
+    println("name:")
+    println(json_get_str(obj, "name"))
+    println("age:")
+    println(json_get_int(obj, "age"))
+    println("city:")
+    println(json_get_str(obj, "city"))
+
+    // Stringify back
+    println("stringify:")
+    println(json_stringify(obj))
+
+    // Build JSON object
+    println("")
+    println("=== JSON Build ===")
+    let person = json_object_new()
+    json_set_str(person, "name", "Taipan")
+    json_set_str(person, "version", "0.1")
+    json_set_int(person, "year", 2025)
+    json_set_str(person, "author", "NextGen Inc")
+    println(json_stringify(person))
+
+    // Array
+    println("")
+    println("=== JSON Array ===")
+    let arr = json_array_new()
+    let item1 = json_object_new()
+    json_set_str(item1, "lang", "Taipan")
+    json_set_int(item1, "stars", 100)
+    let item2 = json_object_new()
+    json_set_str(item2, "lang", "Python")
+    json_set_int(item2, "stars", 50)
+    json_array_push(arr, item1)
+    json_array_push(arr, item2)
+    println(json_stringify(arr))
+    println("array length:")
+    println(json_array_len(arr))
+
+    // Parse array
+    println("")
+    println("=== Parse Array ===")
+    let arr2 = json_parse("[1,2,3,4,5]")
+    println("length:")
+    println(json_array_len(arr2))
+}

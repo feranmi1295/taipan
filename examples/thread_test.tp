@@ -1,0 +1,51 @@
+use std.io
+use std.thread
+use std.string
+
+fn worker1() {
+    println("thread 1: start")
+    thread_sleep(50)
+    println("thread 1: done")
+}
+
+fn worker2() {
+    println("thread 2: start")
+    thread_sleep(20)
+    println("thread 2: done")
+}
+
+fn worker3() {
+    println("thread 3: counting")
+    let i: i32 = 0
+    while i < 3 {
+        print("thread 3: ")
+        println(i)
+        thread_sleep(10)
+        i += 1
+    }
+    println("thread 3: done")
+}
+
+fn main() {
+    println("=== Thread Test ===")
+    let t1: i32 = thread_spawn(worker1)
+    let t2: i32 = thread_spawn(worker2)
+    let t3: i32 = thread_spawn(worker3)
+
+    println("waiting for threads...")
+    thread_join(t1)
+    thread_join(t2)
+    thread_join(t3)
+    println("all threads done")
+
+    // Mutex test
+    println("")
+    println("=== Mutex Test ===")
+    let m = mutex_new()
+    mutex_lock(m)
+    println("mutex locked")
+    mutex_unlock(m)
+    println("mutex unlocked")
+    mutex_free(m)
+    println("mutex freed")
+}

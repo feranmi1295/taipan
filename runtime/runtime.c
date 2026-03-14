@@ -1588,3 +1588,309 @@ void __taipan_chan_free(void *cp) {
     for (int i=0;i<CHAN_BUF;i++) if(c->msgs[i]) free(c->msgs[i]);
     free(c);
 }
+
+// ─────────────────────────────────────────────
+//  std.json — JSON parse and stringify
+// ─────────────────────────────────────────────
+
+typedef enum {
+    JSON_NULL, JSON_BOOL, JSON_INT, JSON_FLOAT,
+    JSON_STRING, JSON_ARRAY, JSON_OBJECT
+} JsonType;
+
+typedef struct JsonNode {
+    JsonType type;
+    char    *key;       // for object fields
+    union {
+        int32_t  bool_val;
+        int32_t  int_val;
+        float    float_val;
+        char    *str_val;
+        struct { struct JsonNode **items; int32_t count; } array;
+        struct { struct JsonNode **fields; int32_t count; } object;
+    } val;
+    struct JsonNode *next;
+} JsonNode;
+
+static JsonNode *json_node_new(JsonType t) {
+    JsonNode *n = calloc(1, sizeof(JsonNode));
+    n->type = t;
+    return n;
+}
+
+void __taipan_json_free(void *np) {
+    JsonNode *n = (JsonNode*)np;
+    if (!n) return;
+    if (n->key) free(n->key);
+    if (n->type == JSON_STRING && n->val.str_val) free(n->val.str_val);
+    if (n->type == JSON_ARRAY) {
+        for (int i=0;i<n->val.array.count;i++) __taipan_json_free(n->val.array.items[i]);
+        free(n->val.array.items);
+    }
+    if (n->type == JSON_OBJECT) {
+        for (int i=0;i<n->val.object.count;i++) __taipan_json_free(n->val.object.fields[i]);
+        free(n->val.object.fields);
+    }
+    free(n);
+}
+
+// ── Parser ────────────────────────────────────
+static const char *jp; // parse cursor
+
+static void json_skip_ws(void) { while(*jp==' '||*jp=='\t'||*jp=='\n'||*jp=='\r') jp++; }
+
+static JsonNode *json_parse_value(void);
+
+static JsonNode *json_parse_string(void) {
+    jp++; // skip "
+    const char *start = jp;
+    while (*jp && *jp != '"') { if (*jp=='\\') jp++; jp++; }
+    size_t len = (size_t)(jp - start);
+    char *s = malloc(len+1); memcpy(s,start,len); s[len]='\0';
+    if (*jp=='"') jp++;
+    JsonNode *n = json_node_new(JSON_STRING);
+    n->val.str_val = s;
+    return n;
+}
+
+static JsonNode *json_parse_number(void) {
+    const char *start = jp;
+    int is_float = 0;
+    if (*jp=='-') jp++;
+    while (*jp>='0'&&*jp<='9') jp++;
+    if (*jp=='.') { is_float=1; jp++; while(*jp>='0'&&*jp<='9') jp++; }
+    if (*jp=='e'||*jp=='E') { is_float=1; jp++; if(*jp=='+'||*jp=='-') jp++; while(*jp>='0'&&*jp<='9') jp++; }
+    char buf[64]; size_t l=(size_t)(jp-start); if(l>63)l=63;
+    memcpy(buf,start,l); buf[l]='\0';
+    JsonNode *n;
+    if (is_float) { n=json_node_new(JSON_FLOAT); n->val.float_val=(float)atof(buf); }
+    else          { n=json_node_new(JSON_INT);   n->val.int_val=(int32_t)atoi(buf); }
+    return n;
+}
+
+static JsonNode *json_parse_array(void) {
+    jp++; // skip [
+    JsonNode *n = json_node_new(JSON_ARRAY);
+    n->val.array.items = NULL;
+    n->val.array.count = 0;
+    json_skip_ws();
+    if (*jp==']') { jp++; return n; }
+    int cap=8;
+    n->val.array.items = malloc(sizeof(JsonNode*)*(size_t)cap);
+    while (*jp && *jp!=']') {
+        JsonNode *item = json_parse_value();
+        if (n->val.array.count >= cap) { cap*=2; n->val.array.items=realloc(n->val.array.items,sizeof(JsonNode*)*(size_t)cap); }
+        n->val.array.items[n->val.array.count++] = item;
+        json_skip_ws();
+        if (*jp==',') jp++;
+        json_skip_ws();
+    }
+    if (*jp==']') jp++;
+    return n;
+}
+
+static JsonNode *json_parse_object(void) {
+    jp++; // skip {
+    JsonNode *n = json_node_new(JSON_OBJECT);
+    n->val.object.fields = NULL;
+    n->val.object.count  = 0;
+    json_skip_ws();
+    if (*jp=='}') { jp++; return n; }
+    int cap=8;
+    n->val.object.fields = malloc(sizeof(JsonNode*)*(size_t)cap);
+    while (*jp && *jp!='}') {
+        json_skip_ws();
+        if (*jp!='"') break;
+        JsonNode *key_node = json_parse_string();
+        char *key = key_node->val.str_val; key_node->val.str_val=NULL;
+        __taipan_json_free(key_node);
+        json_skip_ws();
+        if (*jp==':') jp++;
+        json_skip_ws();
+        JsonNode *val = json_parse_value();
+        val->key = key;
+        if (n->val.object.count >= cap) { cap*=2; n->val.object.fields=realloc(n->val.object.fields,sizeof(JsonNode*)*(size_t)cap); }
+        n->val.object.fields[n->val.object.count++] = val;
+        json_skip_ws();
+        if (*jp==',') jp++;
+        json_skip_ws();
+    }
+    if (*jp=='}') jp++;
+    return n;
+}
+
+static JsonNode *json_parse_value(void) {
+    json_skip_ws();
+    if (*jp=='"') return json_parse_string();
+    if (*jp=='{') return json_parse_object();
+    if (*jp=='[') return json_parse_array();
+    if (*jp=='-'||(*jp>='0'&&*jp<='9')) return json_parse_number();
+    if (strncmp(jp,"true",4)==0)  { jp+=4; JsonNode *n=json_node_new(JSON_BOOL);  n->val.bool_val=1; return n; }
+    if (strncmp(jp,"false",5)==0) { jp+=5; JsonNode *n=json_node_new(JSON_BOOL);  n->val.bool_val=0; return n; }
+    if (strncmp(jp,"null",4)==0)  { jp+=4; return json_node_new(JSON_NULL); }
+    return json_node_new(JSON_NULL);
+}
+
+void *__taipan_json_parse(const char *input) {
+    jp = input;
+    return (void*)json_parse_value();
+}
+
+// ── Stringify ─────────────────────────────────
+static void json_write(JsonNode *n, char **buf, size_t *len, size_t *cap) {
+    #define JW(s) do { size_t sl=strlen(s); if(*len+sl+1>*cap){*cap=(*cap+sl)*2;*buf=realloc(*buf,*cap);} memcpy(*buf+*len,s,sl); *len+=sl; (*buf)[*len]='\0'; } while(0)
+    if (!n) { JW("null"); return; }
+    char tmp[64];
+    switch(n->type) {
+        case JSON_NULL:   JW("null"); break;
+        case JSON_BOOL:   JW(n->val.bool_val?"true":"false"); break;
+        case JSON_INT:    snprintf(tmp,64,"%d",n->val.int_val); JW(tmp); break;
+        case JSON_FLOAT:  snprintf(tmp,64,"%g",n->val.float_val); JW(tmp); break;
+        case JSON_STRING: JW("\""); JW(n->val.str_val); JW("\""); break;
+        case JSON_ARRAY:
+            JW("[");
+            for(int i=0;i<n->val.array.count;i++){
+                if(i) JW(",");
+                json_write(n->val.array.items[i],buf,len,cap);
+            }
+            JW("]"); break;
+        case JSON_OBJECT:
+            JW("{");
+            for(int i=0;i<n->val.object.count;i++){
+                if(i) JW(",");
+                JW("\""); JW(n->val.object.fields[i]->key); JW("\":");
+                json_write(n->val.object.fields[i],buf,len,cap);
+            }
+            JW("}"); break;
+    }
+}
+
+char *__taipan_json_stringify(void *np) {
+    size_t len=0, cap=256;
+    char *buf = malloc(cap);
+    buf[0]='\0';
+    json_write((JsonNode*)np, &buf, &len, &cap);
+    return buf;
+}
+
+// ── Accessors ─────────────────────────────────
+char   *__taipan_json_get_str  (void *np, const char *key) {
+    JsonNode *n=(JsonNode*)np;
+    if (!n||n->type!=JSON_OBJECT) return (char*)"";
+    for(int i=0;i<n->val.object.count;i++)
+        if(!strcmp(n->val.object.fields[i]->key,key))
+            return n->val.object.fields[i]->type==JSON_STRING ? n->val.object.fields[i]->val.str_val : (char*)"";
+    return (char*)"";
+}
+int32_t __taipan_json_get_int  (void *np, const char *key) {
+    JsonNode *n=(JsonNode*)np;
+    if (!n||n->type!=JSON_OBJECT) return 0;
+    for(int i=0;i<n->val.object.count;i++)
+        if(!strcmp(n->val.object.fields[i]->key,key))
+            return n->val.object.fields[i]->val.int_val;
+    return 0;
+}
+float   __taipan_json_get_float(void *np, const char *key) {
+    JsonNode *n=(JsonNode*)np;
+    if (!n||n->type!=JSON_OBJECT) return 0.0f;
+    for(int i=0;i<n->val.object.count;i++)
+        if(!strcmp(n->val.object.fields[i]->key,key))
+            return n->val.object.fields[i]->val.float_val;
+    return 0.0f;
+}
+int32_t __taipan_json_array_len(void *np) {
+    JsonNode *n=(JsonNode*)np;
+    return (n&&n->type==JSON_ARRAY) ? n->val.array.count : 0;
+}
+void   *__taipan_json_array_get(void *np, int32_t idx) {
+    JsonNode *n=(JsonNode*)np;
+    if (!n||n->type!=JSON_ARRAY||idx<0||idx>=n->val.array.count) return NULL;
+    return (void*)n->val.array.items[idx];
+}
+char   *__taipan_json_to_str   (void *np) {
+    JsonNode *n=(JsonNode*)np;
+    if (!n) return (char*)"null";
+    if (n->type==JSON_STRING) return n->val.str_val;
+    return __taipan_json_stringify(np);
+}
+
+// ── Builder ───────────────────────────────────
+void *__taipan_json_object_new (void) { return (void*)json_node_new(JSON_OBJECT); }
+void *__taipan_json_array_new2 (void) { return (void*)json_node_new(JSON_ARRAY); }
+void  __taipan_json_set_str    (void *np, const char *key, const char *val) {
+    JsonNode *n=(JsonNode*)np; if(!n||n->type!=JSON_OBJECT) return;
+    JsonNode *v=json_node_new(JSON_STRING); v->key=strdup(key); v->val.str_val=strdup(val);
+    n->val.object.fields=realloc(n->val.object.fields,sizeof(JsonNode*)*(size_t)(n->val.object.count+1));
+    n->val.object.fields[n->val.object.count++]=v;
+}
+void  __taipan_json_set_int    (void *np, const char *key, int32_t val) {
+    JsonNode *n=(JsonNode*)np; if(!n||n->type!=JSON_OBJECT) return;
+    JsonNode *v=json_node_new(JSON_INT); v->key=strdup(key); v->val.int_val=val;
+    n->val.object.fields=realloc(n->val.object.fields,sizeof(JsonNode*)*(size_t)(n->val.object.count+1));
+    n->val.object.fields[n->val.object.count++]=v;
+}
+void  __taipan_json_array_push2(void *np, void *item) {
+    JsonNode *n=(JsonNode*)np; if(!n||n->type!=JSON_ARRAY) return;
+    n->val.array.items=realloc(n->val.array.items,sizeof(JsonNode*)*(size_t)(n->val.array.count+1));
+    n->val.array.items[n->val.array.count++]=(JsonNode*)item;
+}
+
+// ─────────────────────────────────────────────
+//  std.thread — POSIX threads
+// ─────────────────────────────────────────────
+#include <pthread.h>
+
+typedef struct {
+    pthread_t   tid;
+    void      (*fn)(void);
+    int32_t     done;
+} TaipanThread;
+
+#define MAX_THREADS 64
+static TaipanThread threads[MAX_THREADS];
+static int32_t      thread_count = 0;
+
+static void *thread_entry(void *arg) {
+    TaipanThread *t = (TaipanThread*)arg;
+    t->fn();
+    t->done = 1;
+    return NULL;
+}
+
+int32_t __taipan_thread_spawn(void (*fn)(void)) {
+    if (thread_count >= MAX_THREADS) return -1;
+    int32_t id = thread_count++;
+    TaipanThread *t = &threads[id];
+    t->fn   = fn;
+    t->done = 0;
+    pthread_create(&t->tid, NULL, thread_entry, (void*)t);
+    return id;
+}
+void __taipan_thread_join(int32_t id) {
+    if (id<0||id>=thread_count) return;
+    pthread_join(threads[id].tid, NULL);
+}
+void __taipan_thread_sleep(int32_t ms) {
+    usleep((useconds_t)ms * 1000);
+}
+int32_t __taipan_thread_done(int32_t id) {
+    if (id<0||id>=thread_count) return 1;
+    return threads[id].done;
+}
+
+// ── Mutex ─────────────────────────────────────
+void *__taipan_mutex_new(void) {
+    pthread_mutex_t *m = malloc(sizeof(pthread_mutex_t));
+    pthread_mutex_init(m, NULL);
+    return (void*)m;
+}
+void __taipan_mutex_lock(void *mp) {
+    pthread_mutex_lock((pthread_mutex_t*)mp);
+}
+void __taipan_mutex_unlock(void *mp) {
+    pthread_mutex_unlock((pthread_mutex_t*)mp);
+}
+void __taipan_mutex_free(void *mp) {
+    pthread_mutex_destroy((pthread_mutex_t*)mp);
+    free(mp);
+}
