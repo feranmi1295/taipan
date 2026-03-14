@@ -25,3 +25,11 @@ examples/mut_simple
 
 # OS
 .DS_Store
+*.ll
+*.o
+*.a
+*.bin
+dataset.csv
+test_tensor.bin
+githubapikey.i
+venom
