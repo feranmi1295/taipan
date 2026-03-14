@@ -806,6 +806,16 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
                     {"fs_delete",     "@__taipan_fs_delete",     "i32"},
                     {"fs_mkdir",      "@__taipan_fs_mkdir",      "i32"},
                     {"fs_size",       "@__taipan_fs_size",       "i64"},
+                    // std.net
+                    {"net_socket",          "@__taipan_net_socket",          "i32"},
+                    {"net_connect",         "@__taipan_net_connect",         "i32"},
+                    {"net_listen",          "@__taipan_net_listen",          "i32"},
+                    {"net_accept",          "@__taipan_net_accept",          "i32"},
+                    {"net_send",            "@__taipan_net_send",            "i32"},
+                    {"net_recv",            "@__taipan_net_recv",            "i8*"},
+                    {"net_close",           "@__taipan_net_close",           "i32"},
+                    {"net_peer_addr",       "@__taipan_net_peer_addr",       "i8*"},
+                    {"net_set_nonblocking", "@__taipan_net_set_nonblocking", "i32"},
                     // str_len alias
                     {"str_len", "@__taipan_str_len", "i32"},
                     {NULL, NULL, NULL}
@@ -1001,7 +1011,17 @@ static void cg_stmt(Codegen *cg, ASTNode *node) {
                 CGValue v = cg_expr(cg, node->as.ret.value);
                 emit(cg, "  ret %s %s\n", v.lltype, v.name);
             } else {
-                emit(cg, "  ret void\n");
+                // bare return — emit correct type for current function
+                if (cg->current_fn_ret[0] && strcmp(cg->current_fn_ret, "void") != 0) {
+                    if (!strcmp(cg->current_fn_ret, "float"))
+                        emit(cg, "  ret float 0.0\n");
+                    else if (!strcmp(cg->current_fn_ret, "i8*"))
+                        emit(cg, "  ret i8* null\n");
+                    else
+                        emit(cg, "  ret %s 0\n", cg->current_fn_ret);
+                } else {
+                    emit(cg, "  ret void\n");
+                }
             }
             cg->last_was_ret = 1;
             break;
@@ -1360,6 +1380,7 @@ static void cg_fn(Codegen *cg, ASTNode *node) {
     // C runtime requires main() to return i32
     int is_main = !strcmp(node->as.fn_def.name, "main");
     if (is_main) strncpy(ret_type, "i32", sizeof(ret_type)-1);
+    strncpy(cg->current_fn_ret, ret_type, sizeof(cg->current_fn_ret)-1);
 
     // Signature
     fprintf(cg->out, "define %s @%s(", ret_type, node->as.fn_def.name);
@@ -1514,6 +1535,16 @@ void codegen_run(Codegen *cg, ASTNode *program) {
     fputs("declare i32 @__taipan_fs_delete(i8*)\n", cg->out);
     fputs("declare i32 @__taipan_fs_mkdir(i8*)\n", cg->out);
     fputs("declare i64 @__taipan_fs_size(i8*)\n", cg->out);
+    // std.net
+    fputs("declare i32 @__taipan_net_socket()\n", cg->out);
+    fputs("declare i32 @__taipan_net_connect(i32, i8*, i32)\n", cg->out);
+    fputs("declare i32 @__taipan_net_listen(i32, i32)\n", cg->out);
+    fputs("declare i32 @__taipan_net_accept(i32)\n", cg->out);
+    fputs("declare i32 @__taipan_net_send(i32, i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_net_recv(i32, i32)\n", cg->out);
+    fputs("declare i32 @__taipan_net_close(i32)\n", cg->out);
+    fputs("declare i8* @__taipan_net_peer_addr(i32)\n", cg->out);
+    fputs("declare i32 @__taipan_net_set_nonblocking(i32)\n", cg->out);
     for (int i = 0; i < cg->str_count; i++) {
         const char *s = cg->str_literals[i];
         // Convert \n \t etc to LLVM hex escapes and count bytes

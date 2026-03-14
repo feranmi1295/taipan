@@ -1,0 +1,31 @@
+use std.io
+use std.net
+use std.string
+
+fn main() {
+    println("Connecting to 127.0.0.1:8080...")
+    let sock: i32 = net_socket()
+    if sock < 0 {
+        println("Failed to create socket")
+        return
+    }
+
+    let r: i32 = net_connect(sock, "127.0.0.1", 8080)
+    if r < 0 {
+        println("Connection failed")
+        net_close(sock)
+        return
+    }
+    println("Connected!")
+
+    let req: str = "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"
+    net_send(sock, req)
+    println("Request sent")
+
+    let response: str = net_recv(sock, 4096)
+    println("Response:")
+    println(response)
+
+    net_close(sock)
+    println("Done")
+}

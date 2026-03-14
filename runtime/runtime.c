@@ -462,3 +462,88 @@ int64_t __taipan_fs_size(const char *path) {
     if (stat(path, &st) != 0) return -1;
     return (int64_t)st.st_size;
 }
+
+// ─────────────────────────────────────────────
+//  std.net — TCP sockets
+// ─────────────────────────────────────────────
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <fcntl.h>
+#include <errno.h>
+
+// Create a TCP socket, returns fd or -1
+int32_t __taipan_net_socket(void) {
+    return (int32_t)socket(AF_INET, SOCK_STREAM, 0);
+}
+
+// Connect to host:port, returns 0 on success or -1
+int32_t __taipan_net_connect(int32_t fd, const char *host, int32_t port) {
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port   = htons((uint16_t)port);
+    struct hostent *he = gethostbyname(host);
+    if (!he) return -1;
+    memcpy(&addr.sin_addr, he->h_addr_list[0], (size_t)he->h_length);
+    return (int32_t)connect(fd, (struct sockaddr*)&addr, sizeof(addr));
+}
+
+// Bind + listen on port, returns server fd or -1
+int32_t __taipan_net_listen(int32_t port, int32_t backlog) {
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) return -1;
+    int opt = 1;
+    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family      = AF_INET;
+    addr.sin_addr.s_addr = INADDR_ANY;
+    addr.sin_port        = htons((uint16_t)port);
+    if (bind(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) { close(fd); return -1; }
+    if (listen(fd, backlog) < 0) { close(fd); return -1; }
+    return (int32_t)fd;
+}
+
+// Accept a connection, returns client fd or -1
+int32_t __taipan_net_accept(int32_t server_fd) {
+    struct sockaddr_in client;
+    socklen_t len = sizeof(client);
+    return (int32_t)accept(server_fd, (struct sockaddr*)&client, &len);
+}
+
+// Send data, returns bytes sent or -1
+int32_t __taipan_net_send(int32_t fd, const char *data) {
+    if (!data) return -1;
+    return (int32_t)send(fd, data, strlen(data), 0);
+}
+
+// Receive data into malloc'd buffer, returns string or ""
+char *__taipan_net_recv(int32_t fd, int32_t buf_size) {
+    char *buf = malloc((size_t)buf_size + 1);
+    if (!buf) return strdup("");
+    int32_t n = (int32_t)recv(fd, buf, (size_t)buf_size, 0);
+    if (n <= 0) { free(buf); return strdup(""); }
+    buf[n] = '\0';
+    return buf;
+}
+
+// Close a socket
+int32_t __taipan_net_close(int32_t fd) {
+    return (int32_t)close(fd);
+}
+
+// Get client IP address from accepted fd
+char *__taipan_net_peer_addr(int32_t fd) {
+    struct sockaddr_in addr;
+    socklen_t len = sizeof(addr);
+    if (getpeername(fd, (struct sockaddr*)&addr, &len) < 0) return strdup("unknown");
+    return strdup(inet_ntoa(addr.sin_addr));
+}
+
+// Set socket non-blocking
+int32_t __taipan_net_set_nonblocking(int32_t fd) {
+    int flags = fcntl(fd, F_GETFL, 0);
+    return (int32_t)fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+}

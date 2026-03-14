@@ -1,0 +1,37 @@
+use std.io
+use std.net
+use std.string
+
+fn main() {
+    println("Starting TCP server on port 8080...")
+    let server: i32 = net_listen(8080, 5)
+    if server < 0 {
+        println("Failed to start server")
+        return
+    }
+    println("Server listening on port 8080")
+    println("Waiting for connection...")
+
+    let client: i32 = net_accept(server)
+    if client < 0 {
+        println("Accept failed")
+        net_close(server)
+        return
+    }
+
+    let addr: str = net_peer_addr(client)
+    print("Client connected from: ")
+    println(addr)
+
+    let msg: str = net_recv(client, 1024)
+    print("Received: ")
+    println(msg)
+
+    let response: str = str_replace("HTTP/1.1 200 OK\r\nContent-Length: 13\r\n\r\nHello Taipan!", "Taipan", "Taipan")
+    net_send(client, response)
+    println("Response sent")
+
+    net_close(client)
+    net_close(server)
+    println("Server done")
+}

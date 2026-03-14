@@ -133,3 +133,14 @@ int32_t __taipan_fs_exists    (const char *path);
 int32_t __taipan_fs_delete    (const char *path);
 int32_t __taipan_fs_mkdir     (const char *path);
 int64_t __taipan_fs_size      (const char *path);
+
+// std.net
+int32_t  __taipan_net_socket          (void);
+int32_t  __taipan_net_connect         (int32_t fd, const char *host, int32_t port);
+int32_t  __taipan_net_listen          (int32_t port, int32_t backlog);
+int32_t  __taipan_net_accept          (int32_t server_fd);
+int32_t  __taipan_net_send            (int32_t fd, const char *data);
+char    *__taipan_net_recv            (int32_t fd, int32_t buf_size);
+int32_t  __taipan_net_close           (int32_t fd);
+char    *__taipan_net_peer_addr       (int32_t fd);
+int32_t  __taipan_net_set_nonblocking (int32_t fd);

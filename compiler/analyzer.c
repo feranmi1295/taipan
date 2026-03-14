@@ -742,6 +742,16 @@ void analyzer_init(Analyzer *a) {
     { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"fs_mkdir",p,1,type_new(TY_I32)); }
     { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"fs_size",p,1,type_new(TY_I32)); }
     { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"str_len",p,1,type_new(TY_I32)); }
+    // std.net
+    { scope_define_fn(a,"net_socket",NULL,0,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(3,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); p[1]=type_new(TY_STR); p[2]=type_new(TY_I32); scope_define_fn(a,"net_connect",p,3,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); p[1]=type_new(TY_I32); scope_define_fn(a,"net_listen",p,2,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); scope_define_fn(a,"net_accept",p,1,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); p[1]=type_new(TY_STR); scope_define_fn(a,"net_send",p,2,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); p[1]=type_new(TY_I32); scope_define_fn(a,"net_recv",p,2,type_new(TY_STR)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); scope_define_fn(a,"net_close",p,1,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); scope_define_fn(a,"net_peer_addr",p,1,type_new(TY_STR)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); scope_define_fn(a,"net_set_nonblocking",p,1,type_new(TY_I32)); }
 }
 
 void analyzer_run(Analyzer *a, ASTNode *program) {
