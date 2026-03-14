@@ -781,6 +781,48 @@ void analyzer_init(Analyzer *a) {
     { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_STR); scope_define_fn(a,"set_remove",p,2,type_new(TY_I32)); }
     { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"set_size",p,1,type_new(TY_I32)); }
     { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"set_free",p,1,type_new(TY_VOID)); }
+    // std.tensor
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); scope_define_fn(a,"tensor_1d",p,1,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); p[1]=type_new(TY_I32); scope_define_fn(a,"tensor_2d",p,2,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"tensor_free",p,1,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_I32); scope_define_fn(a,"tensor_get",p,2,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(3,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_I32); p[2]=type_new(TY_F32); scope_define_fn(a,"tensor_set",p,3,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(3,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_I32); p[2]=type_new(TY_I32); scope_define_fn(a,"tensor_get2d",p,3,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(4,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_I32); p[2]=type_new(TY_I32); p[3]=type_new(TY_F32); scope_define_fn(a,"tensor_set2d",p,4,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"tensor_size",p,1,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"tensor_rows",p,1,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"tensor_cols",p,1,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_F32); scope_define_fn(a,"tensor_fill",p,2,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"tensor_zeros",p,1,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"tensor_ones",p,1,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"tensor_xavier",p,1,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(3,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_F32); p[2]=type_new(TY_F32); scope_define_fn(a,"tensor_randn",p,3,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); scope_define_fn(a,"tensor_add",p,2,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); scope_define_fn(a,"tensor_sub",p,2,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); scope_define_fn(a,"tensor_mul",p,2,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_F32); scope_define_fn(a,"tensor_scale",p,2,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_F32); scope_define_fn(a,"tensor_add_scalar",p,2,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"tensor_sum",p,1,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"tensor_mean",p,1,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"tensor_max",p,1,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"tensor_min",p,1,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); scope_define_fn(a,"tensor_matmul",p,2,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"tensor_transpose",p,1,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"tensor_relu",p,1,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"tensor_sigmoid",p,1,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"tensor_tanh_act",p,1,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"tensor_softmax",p,1,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"tensor_gelu",p,1,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); scope_define_fn(a,"tensor_mse",p,2,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); scope_define_fn(a,"tensor_cross_entropy",p,2,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); scope_define_fn(a,"tensor_relu_grad",p,2,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); scope_define_fn(a,"tensor_sigmoid_grad",p,2,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_F32); scope_define_fn(a,"tensor_layer_norm",p,2,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); scope_define_fn(a,"tensor_dot",p,2,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"tensor_copy",p,1,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"tensor_print",p,1,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_STR); scope_define_fn(a,"tensor_save",p,2,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"tensor_load",p,1,type_new(TY_ANY)); }
 }
 
 void analyzer_run(Analyzer *a, ASTNode *program) {

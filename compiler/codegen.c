@@ -845,6 +845,48 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
                     {"set_remove", "@__taipan_set_remove", "i32"},
                     {"set_size",   "@__taipan_set_size",   "i32"},
                     {"set_free",   "@__taipan_set_free",   "void"},
+                    // std.tensor
+                    {"tensor_1d",          "@__taipan_tensor_1d",          "i8*"},
+                    {"tensor_2d",          "@__taipan_tensor_2d",          "i8*"},
+                    {"tensor_free",        "@__taipan_tensor_free",        "void"},
+                    {"tensor_get",         "@__taipan_tensor_get",         "float"},
+                    {"tensor_set",         "@__taipan_tensor_set",         "void"},
+                    {"tensor_get2d",       "@__taipan_tensor_get2d",       "float"},
+                    {"tensor_set2d",       "@__taipan_tensor_set2d",       "void"},
+                    {"tensor_size",        "@__taipan_tensor_size",        "i32"},
+                    {"tensor_rows",        "@__taipan_tensor_rows",        "i32"},
+                    {"tensor_cols",        "@__taipan_tensor_cols",        "i32"},
+                    {"tensor_fill",        "@__taipan_tensor_fill",        "void"},
+                    {"tensor_zeros",       "@__taipan_tensor_zeros",       "void"},
+                    {"tensor_ones",        "@__taipan_tensor_ones",        "void"},
+                    {"tensor_xavier",      "@__taipan_tensor_xavier",      "void"},
+                    {"tensor_randn",       "@__taipan_tensor_randn",       "void"},
+                    {"tensor_add",         "@__taipan_tensor_add",         "i8*"},
+                    {"tensor_sub",         "@__taipan_tensor_sub",         "i8*"},
+                    {"tensor_mul",         "@__taipan_tensor_mul",         "i8*"},
+                    {"tensor_scale",       "@__taipan_tensor_scale",       "i8*"},
+                    {"tensor_add_scalar",  "@__taipan_tensor_add_scalar",  "i8*"},
+                    {"tensor_sum",         "@__taipan_tensor_sum",         "float"},
+                    {"tensor_mean",        "@__taipan_tensor_mean",        "float"},
+                    {"tensor_max",         "@__taipan_tensor_max",         "float"},
+                    {"tensor_min",         "@__taipan_tensor_min",         "float"},
+                    {"tensor_matmul",      "@__taipan_tensor_matmul",      "i8*"},
+                    {"tensor_transpose",   "@__taipan_tensor_transpose",   "i8*"},
+                    {"tensor_relu",        "@__taipan_tensor_relu",        "i8*"},
+                    {"tensor_sigmoid",     "@__taipan_tensor_sigmoid",     "i8*"},
+                    {"tensor_tanh_act",    "@__taipan_tensor_tanh_act",    "i8*"},
+                    {"tensor_softmax",     "@__taipan_tensor_softmax",     "i8*"},
+                    {"tensor_gelu",        "@__taipan_tensor_gelu",        "i8*"},
+                    {"tensor_mse",         "@__taipan_tensor_mse",         "float"},
+                    {"tensor_cross_entropy","@__taipan_tensor_cross_entropy","float"},
+                    {"tensor_relu_grad",   "@__taipan_tensor_relu_grad",   "i8*"},
+                    {"tensor_sigmoid_grad","@__taipan_tensor_sigmoid_grad","i8*"},
+                    {"tensor_layer_norm",  "@__taipan_tensor_layer_norm",  "i8*"},
+                    {"tensor_dot",         "@__taipan_tensor_dot",         "float"},
+                    {"tensor_copy",        "@__taipan_tensor_copy",        "i8*"},
+                    {"tensor_print",       "@__taipan_tensor_print",       "void"},
+                    {"tensor_save",        "@__taipan_tensor_save",        "i32"},
+                    {"tensor_load",        "@__taipan_tensor_load",        "i8*"},
                     // str_len alias
                     {"str_len", "@__taipan_str_len", "i32"},
                     {NULL, NULL, NULL}
@@ -852,16 +894,25 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
                 int builtin_matched = 0;
                 for (int bi = 0; g_builtins[bi].tp; bi++) {
                     if (!strcmp(fname, g_builtins[bi].tp)) {
-                        int r = next_reg(cg);
-                        fprintf(cg->out, "  %%%d = call %s %s(", r, g_builtins[bi].rt, g_builtins[bi].ll);
+                        int is_void = !strcmp(g_builtins[bi].rt, "void");
+                        if (is_void) {
+                            fprintf(cg->out, "  call void %s(", g_builtins[bi].ll);
+                        } else {
+                            int r = next_reg(cg);
+                            fprintf(cg->out, "  %%%d = call %s %s(", r, g_builtins[bi].rt, g_builtins[bi].ll);
+                            snprintf(val.name,   sizeof(val.name),   "%%%d", r);
+                            snprintf(val.lltype, sizeof(val.lltype),  "%s", g_builtins[bi].rt);
+                        }
                         for (int ai = 0; ai < argc; ai++) {
                             if (ai) fprintf(cg->out, ", ");
                             fprintf(cg->out, "%s %s", args[ai].lltype, args[ai].name);
                         }
                         fprintf(cg->out, ")\n");
                         free(args);
-                        snprintf(val.name,   sizeof(val.name),   "%%%d", r);
-                        snprintf(val.lltype, sizeof(val.lltype),  "%s", g_builtins[bi].rt);
+                        if (is_void) {
+                            snprintf(val.name,   sizeof(val.name),   "0");
+                            snprintf(val.lltype, sizeof(val.lltype),  "void");
+                        }
                         builtin_matched = 1;
                         return val;
                     }
@@ -1603,6 +1654,48 @@ void codegen_run(Codegen *cg, ASTNode *program) {
     fputs("declare i32 @__taipan_set_remove(i8*, i8*)\n", cg->out);
     fputs("declare i32 @__taipan_set_size(i8*)\n", cg->out);
     fputs("declare void @__taipan_set_free(i8*)\n", cg->out);
+    // std.tensor
+    fputs("declare i8* @__taipan_tensor_1d(i32)\n", cg->out);
+    fputs("declare i8* @__taipan_tensor_2d(i32, i32)\n", cg->out);
+    fputs("declare void @__taipan_tensor_free(i8*)\n", cg->out);
+    fputs("declare float @__taipan_tensor_get(i8*, i32)\n", cg->out);
+    fputs("declare void @__taipan_tensor_set(i8*, i32, float)\n", cg->out);
+    fputs("declare float @__taipan_tensor_get2d(i8*, i32, i32)\n", cg->out);
+    fputs("declare void @__taipan_tensor_set2d(i8*, i32, i32, float)\n", cg->out);
+    fputs("declare i32 @__taipan_tensor_size(i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_tensor_rows(i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_tensor_cols(i8*)\n", cg->out);
+    fputs("declare void @__taipan_tensor_fill(i8*, float)\n", cg->out);
+    fputs("declare void @__taipan_tensor_zeros(i8*)\n", cg->out);
+    fputs("declare void @__taipan_tensor_ones(i8*)\n", cg->out);
+    fputs("declare void @__taipan_tensor_xavier(i8*)\n", cg->out);
+    fputs("declare void @__taipan_tensor_randn(i8*, float, float)\n", cg->out);
+    fputs("declare i8* @__taipan_tensor_add(i8*, i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_tensor_sub(i8*, i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_tensor_mul(i8*, i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_tensor_scale(i8*, float)\n", cg->out);
+    fputs("declare i8* @__taipan_tensor_add_scalar(i8*, float)\n", cg->out);
+    fputs("declare float @__taipan_tensor_sum(i8*)\n", cg->out);
+    fputs("declare float @__taipan_tensor_mean(i8*)\n", cg->out);
+    fputs("declare float @__taipan_tensor_max(i8*)\n", cg->out);
+    fputs("declare float @__taipan_tensor_min(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_tensor_matmul(i8*, i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_tensor_transpose(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_tensor_relu(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_tensor_sigmoid(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_tensor_tanh_act(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_tensor_softmax(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_tensor_gelu(i8*)\n", cg->out);
+    fputs("declare float @__taipan_tensor_mse(i8*, i8*)\n", cg->out);
+    fputs("declare float @__taipan_tensor_cross_entropy(i8*, i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_tensor_relu_grad(i8*, i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_tensor_sigmoid_grad(i8*, i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_tensor_layer_norm(i8*, float)\n", cg->out);
+    fputs("declare float @__taipan_tensor_dot(i8*, i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_tensor_copy(i8*)\n", cg->out);
+    fputs("declare void @__taipan_tensor_print(i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_tensor_save(i8*, i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_tensor_load(i8*)\n", cg->out);
     for (int i = 0; i < cg->str_count; i++) {
         const char *s = cg->str_literals[i];
         // Convert \n \t etc to LLVM hex escapes and count bytes

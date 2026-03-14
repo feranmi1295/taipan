@@ -1,0 +1,84 @@
+use std.io
+use std.tensor
+use std.math
+
+fn main() {
+    // Basic 1D tensor
+    println("=== 1D Tensor ===")
+    let t = tensor_1d(5)
+    tensor_set(t, 0, 1.0)
+    tensor_set(t, 1, 2.0)
+    tensor_set(t, 2, 3.0)
+    tensor_set(t, 3, 4.0)
+    tensor_set(t, 4, 5.0)
+    tensor_print(t)
+    println("sum:")
+    println(tensor_sum(t))
+    println("mean:")
+    println(tensor_mean(t))
+    println("max:")
+    println(tensor_max(t))
+
+    // Activations
+    println("=== Activations ===")
+    let a = tensor_relu(t)
+    tensor_print(a)
+
+    let b = tensor_sigmoid(t)
+    tensor_print(b)
+
+    let c = tensor_softmax(t)
+    tensor_print(c)
+    println("softmax sum (should be 1.0):")
+    println(tensor_sum(c))
+
+    // 2D Matrix ops
+    println("=== Matrix Multiply ===")
+    let m1 = tensor_2d(2, 3)
+    tensor_set2d(m1, 0, 0, 1.0)
+    tensor_set2d(m1, 0, 1, 2.0)
+    tensor_set2d(m1, 0, 2, 3.0)
+    tensor_set2d(m1, 1, 0, 4.0)
+    tensor_set2d(m1, 1, 1, 5.0)
+    tensor_set2d(m1, 1, 2, 6.0)
+
+    let m2 = tensor_2d(3, 2)
+    tensor_set2d(m2, 0, 0, 7.0)
+    tensor_set2d(m2, 0, 1, 8.0)
+    tensor_set2d(m2, 1, 0, 9.0)
+    tensor_set2d(m2, 1, 1, 10.0)
+    tensor_set2d(m2, 2, 0, 11.0)
+    tensor_set2d(m2, 2, 1, 12.0)
+
+    let result = tensor_matmul(m1, m2)
+    tensor_print(result)
+
+    // Loss
+    println("=== Loss ===")
+    let pred = tensor_1d(3)
+    tensor_set(pred, 0, 0.9)
+    tensor_set(pred, 1, 0.05)
+    tensor_set(pred, 2, 0.05)
+    let target = tensor_1d(3)
+    tensor_set(target, 0, 1.0)
+    tensor_set(target, 1, 0.0)
+    tensor_set(target, 2, 0.0)
+    println("mse loss:")
+    println(tensor_mse(pred, target))
+    println("cross entropy:")
+    println(tensor_cross_entropy(pred, target))
+
+    // Xavier init
+    println("=== Xavier Init ===")
+    let w = tensor_2d(4, 4)
+    tensor_xavier(w)
+    tensor_print(w)
+    println("mean (should be ~0):")
+    println(tensor_mean(w))
+
+    // Save and load
+    tensor_save(t, "test_tensor.bin")
+    let loaded = tensor_load("test_tensor.bin")
+    println("=== Loaded tensor ===")
+    tensor_print(loaded)
+}

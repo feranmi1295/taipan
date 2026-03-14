@@ -918,3 +918,341 @@ void __taipan_set_free(void *sp) {
     }
     free(s);
 }
+
+// ─────────────────────────────────────────────
+//  std.tensor — N-dimensional tensor engine
+//  CPU backend (CUDA hooks reserved)
+// ─────────────────────────────────────────────
+#include <math.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+
+typedef struct {
+    float   *data;      // flat data buffer
+    int32_t *shape;     // dimension sizes
+    int32_t *strides;   // strides per dim
+    int32_t  ndim;      // number of dimensions
+    int32_t  size;      // total elements
+    int32_t  owned;     // 1 = we own data, 0 = view
+} TaipanTensor;
+
+// ── Allocate ──────────────────────────────────
+TaipanTensor *__taipan_tensor_new(int32_t *shape, int32_t ndim) {
+    TaipanTensor *t = malloc(sizeof(TaipanTensor));
+    t->ndim    = ndim;
+    t->shape   = malloc(sizeof(int32_t) * (size_t)ndim);
+    t->strides = malloc(sizeof(int32_t) * (size_t)ndim);
+    t->owned   = 1;
+    int32_t size = 1;
+    for (int i = ndim-1; i >= 0; i--) {
+        t->shape[i]   = shape[i];
+        t->strides[i] = size;
+        size *= shape[i];
+    }
+    t->size = size;
+    t->data = calloc((size_t)size, sizeof(float));
+    return t;
+}
+
+// Convenience: 1D tensor
+TaipanTensor *__taipan_tensor_1d(int32_t n) {
+    int32_t s[1] = {n};
+    return __taipan_tensor_new(s, 1);
+}
+
+// Convenience: 2D tensor (matrix)
+TaipanTensor *__taipan_tensor_2d(int32_t rows, int32_t cols) {
+    int32_t s[2] = {rows, cols};
+    return __taipan_tensor_new(s, 2);
+}
+
+void __taipan_tensor_free(TaipanTensor *t) {
+    if (!t) return;
+    if (t->owned) free(t->data);
+    free(t->shape);
+    free(t->strides);
+    free(t);
+}
+
+// ── Access ────────────────────────────────────
+float __taipan_tensor_get(TaipanTensor *t, int32_t idx) {
+    if (!t || idx < 0 || idx >= t->size) return 0.0f;
+    return t->data[idx];
+}
+void __taipan_tensor_set(TaipanTensor *t, int32_t idx, float val) {
+    if (!t || idx < 0 || idx >= t->size) return;
+    t->data[idx] = val;
+}
+// 2D access
+float __taipan_tensor_get2d(TaipanTensor *t, int32_t r, int32_t c) {
+    if (!t || t->ndim < 2) return 0.0f;
+    return t->data[r * t->strides[0] + c * t->strides[1]];
+}
+void __taipan_tensor_set2d(TaipanTensor *t, int32_t r, int32_t c, float val) {
+    if (!t || t->ndim < 2) return;
+    t->data[r * t->strides[0] + c * t->strides[1]] = val;
+}
+int32_t __taipan_tensor_size(TaipanTensor *t) { return t ? t->size : 0; }
+int32_t __taipan_tensor_rows(TaipanTensor *t) { return (t && t->ndim >= 1) ? t->shape[0] : 0; }
+int32_t __taipan_tensor_cols(TaipanTensor *t) { return (t && t->ndim >= 2) ? t->shape[1] : 0; }
+
+// ── Fill ops ──────────────────────────────────
+void __taipan_tensor_fill(TaipanTensor *t, float val) {
+    if (!t) return;
+    for (int32_t i = 0; i < t->size; i++) t->data[i] = val;
+}
+void __taipan_tensor_zeros(TaipanTensor *t) { __taipan_tensor_fill(t, 0.0f); }
+void __taipan_tensor_ones(TaipanTensor *t)  { __taipan_tensor_fill(t, 1.0f); }
+
+// Xavier uniform init
+void __taipan_tensor_xavier(TaipanTensor *t) {
+    if (!t) return;
+    float limit = sqrtf(6.0f / (float)t->size);
+    for (int32_t i = 0; i < t->size; i++)
+        t->data[i] = ((float)rand()/(float)RAND_MAX) * 2.0f * limit - limit;
+}
+// Random normal (Box-Muller)
+void __taipan_tensor_randn(TaipanTensor *t, float mean, float std) {
+    if (!t) return;
+    for (int32_t i = 0; i < t->size-1; i+=2) {
+        float u1 = (float)rand()/(float)RAND_MAX + 1e-10f;
+        float u2 = (float)rand()/(float)RAND_MAX;
+        float z0 = sqrtf(-2.0f*logf(u1))*cosf(2.0f*3.14159265f*u2);
+        float z1 = sqrtf(-2.0f*logf(u1))*sinf(2.0f*3.14159265f*u2);
+        t->data[i]   = mean + std * z0;
+        t->data[i+1] = mean + std * z1;
+    }
+}
+
+// ── Element-wise ops ──────────────────────────
+TaipanTensor *__taipan_tensor_add(TaipanTensor *a, TaipanTensor *b) {
+    if (!a || !b || a->size != b->size) return NULL;
+    TaipanTensor *out = __taipan_tensor_1d(a->size);
+    for (int32_t i = 0; i < a->size; i++) out->data[i] = a->data[i] + b->data[i];
+    return out;
+}
+TaipanTensor *__taipan_tensor_sub(TaipanTensor *a, TaipanTensor *b) {
+    if (!a || !b || a->size != b->size) return NULL;
+    TaipanTensor *out = __taipan_tensor_1d(a->size);
+    for (int32_t i = 0; i < a->size; i++) out->data[i] = a->data[i] - b->data[i];
+    return out;
+}
+TaipanTensor *__taipan_tensor_mul(TaipanTensor *a, TaipanTensor *b) {
+    if (!a || !b || a->size != b->size) return NULL;
+    TaipanTensor *out = __taipan_tensor_1d(a->size);
+    for (int32_t i = 0; i < a->size; i++) out->data[i] = a->data[i] * b->data[i];
+    return out;
+}
+TaipanTensor *__taipan_tensor_scale(TaipanTensor *a, float s) {
+    if (!a) return NULL;
+    TaipanTensor *out = __taipan_tensor_1d(a->size);
+    for (int32_t i = 0; i < a->size; i++) out->data[i] = a->data[i] * s;
+    return out;
+}
+TaipanTensor *__taipan_tensor_add_scalar(TaipanTensor *a, float s) {
+    if (!a) return NULL;
+    TaipanTensor *out = __taipan_tensor_1d(a->size);
+    for (int32_t i = 0; i < a->size; i++) out->data[i] = a->data[i] + s;
+    return out;
+}
+
+// ── Reduction ops ─────────────────────────────
+float __taipan_tensor_sum(TaipanTensor *t) {
+    if (!t) return 0.0f;
+    float s = 0.0f;
+    for (int32_t i = 0; i < t->size; i++) s += t->data[i];
+    return s;
+}
+float __taipan_tensor_mean(TaipanTensor *t) {
+    if (!t || t->size == 0) return 0.0f;
+    return __taipan_tensor_sum(t) / (float)t->size;
+}
+float __taipan_tensor_max(TaipanTensor *t) {
+    if (!t || t->size == 0) return 0.0f;
+    float m = t->data[0];
+    for (int32_t i = 1; i < t->size; i++) if (t->data[i] > m) m = t->data[i];
+    return m;
+}
+float __taipan_tensor_min(TaipanTensor *t) {
+    if (!t || t->size == 0) return 0.0f;
+    float m = t->data[0];
+    for (int32_t i = 1; i < t->size; i++) if (t->data[i] < m) m = t->data[i];
+    return m;
+}
+
+// ── Matrix multiply ───────────────────────────
+// (M x K) @ (K x N) = (M x N)
+TaipanTensor *__taipan_tensor_matmul(TaipanTensor *a, TaipanTensor *b) {
+    if (!a || !b || a->ndim != 2 || b->ndim != 2) return NULL;
+    int32_t M = a->shape[0], K = a->shape[1], N = b->shape[1];
+    if (K != b->shape[0]) return NULL;
+    int32_t s[2] = {M, N};
+    TaipanTensor *out = __taipan_tensor_new(s, 2);
+    for (int32_t i = 0; i < M; i++)
+        for (int32_t j = 0; j < N; j++) {
+            float sum = 0.0f;
+            for (int32_t k = 0; k < K; k++)
+                sum += a->data[i*K+k] * b->data[k*N+j];
+            out->data[i*N+j] = sum;
+        }
+    return out;
+}
+
+// ── Transpose ─────────────────────────────────
+TaipanTensor *__taipan_tensor_transpose(TaipanTensor *a) {
+    if (!a || a->ndim != 2) return NULL;
+    int32_t s[2] = {a->shape[1], a->shape[0]};
+    TaipanTensor *out = __taipan_tensor_new(s, 2);
+    for (int32_t i = 0; i < a->shape[0]; i++)
+        for (int32_t j = 0; j < a->shape[1]; j++)
+            out->data[j*a->shape[0]+i] = a->data[i*a->shape[1]+j];
+    return out;
+}
+
+// ── Activation functions ──────────────────────
+TaipanTensor *__taipan_tensor_relu(TaipanTensor *t) {
+    if (!t) return NULL;
+    TaipanTensor *out = __taipan_tensor_1d(t->size);
+    for (int32_t i = 0; i < t->size; i++)
+        out->data[i] = t->data[i] > 0.0f ? t->data[i] : 0.0f;
+    return out;
+}
+TaipanTensor *__taipan_tensor_sigmoid(TaipanTensor *t) {
+    if (!t) return NULL;
+    TaipanTensor *out = __taipan_tensor_1d(t->size);
+    for (int32_t i = 0; i < t->size; i++)
+        out->data[i] = 1.0f / (1.0f + expf(-t->data[i]));
+    return out;
+}
+TaipanTensor *__taipan_tensor_tanh_act(TaipanTensor *t) {
+    if (!t) return NULL;
+    TaipanTensor *out = __taipan_tensor_1d(t->size);
+    for (int32_t i = 0; i < t->size; i++)
+        out->data[i] = tanhf(t->data[i]);
+    return out;
+}
+TaipanTensor *__taipan_tensor_softmax(TaipanTensor *t) {
+    if (!t) return NULL;
+    TaipanTensor *out = __taipan_tensor_1d(t->size);
+    float mx = __taipan_tensor_max(t);
+    float sum = 0.0f;
+    for (int32_t i = 0; i < t->size; i++) { out->data[i]=expf(t->data[i]-mx); sum+=out->data[i]; }
+    for (int32_t i = 0; i < t->size; i++) out->data[i] /= sum;
+    return out;
+}
+TaipanTensor *__taipan_tensor_gelu(TaipanTensor *t) {
+    if (!t) return NULL;
+    TaipanTensor *out = __taipan_tensor_1d(t->size);
+    for (int32_t i = 0; i < t->size; i++) {
+        float x = t->data[i];
+        out->data[i] = 0.5f*x*(1.0f+tanhf(0.7978845608f*(x+0.044715f*x*x*x)));
+    }
+    return out;
+}
+
+// ── Loss functions ────────────────────────────
+float __taipan_tensor_mse(TaipanTensor *pred, TaipanTensor *target) {
+    if (!pred || !target || pred->size != target->size) return 0.0f;
+    float loss = 0.0f;
+    for (int32_t i = 0; i < pred->size; i++) {
+        float d = pred->data[i] - target->data[i];
+        loss += d * d;
+    }
+    return loss / (float)pred->size;
+}
+float __taipan_tensor_cross_entropy(TaipanTensor *pred, TaipanTensor *target) {
+    if (!pred || !target || pred->size != target->size) return 0.0f;
+    float loss = 0.0f;
+    for (int32_t i = 0; i < pred->size; i++)
+        loss -= target->data[i] * logf(pred->data[i] + 1e-10f);
+    return loss;
+}
+
+// ── Gradient ops (for backprop) ───────────────
+TaipanTensor *__taipan_tensor_relu_grad(TaipanTensor *t, TaipanTensor *grad) {
+    if (!t || !grad) return NULL;
+    TaipanTensor *out = __taipan_tensor_1d(t->size);
+    for (int32_t i = 0; i < t->size; i++)
+        out->data[i] = t->data[i] > 0.0f ? grad->data[i] : 0.0f;
+    return out;
+}
+TaipanTensor *__taipan_tensor_sigmoid_grad(TaipanTensor *sigmoid_out, TaipanTensor *grad) {
+    if (!sigmoid_out || !grad) return NULL;
+    TaipanTensor *out = __taipan_tensor_1d(sigmoid_out->size);
+    for (int32_t i = 0; i < sigmoid_out->size; i++) {
+        float s = sigmoid_out->data[i];
+        out->data[i] = grad->data[i] * s * (1.0f - s);
+    }
+    return out;
+}
+
+// ── Normalization ─────────────────────────────
+TaipanTensor *__taipan_tensor_layer_norm(TaipanTensor *t, float eps) {
+    if (!t) return NULL;
+    float mean = __taipan_tensor_mean(t);
+    float var  = 0.0f;
+    for (int32_t i = 0; i < t->size; i++) { float d=t->data[i]-mean; var+=d*d; }
+    var /= (float)t->size;
+    float std_inv = 1.0f / sqrtf(var + eps);
+    TaipanTensor *out = __taipan_tensor_1d(t->size);
+    for (int32_t i = 0; i < t->size; i++)
+        out->data[i] = (t->data[i] - mean) * std_inv;
+    return out;
+}
+
+// ── Dot product ───────────────────────────────
+float __taipan_tensor_dot(TaipanTensor *a, TaipanTensor *b) {
+    if (!a || !b || a->size != b->size) return 0.0f;
+    float s = 0.0f;
+    for (int32_t i = 0; i < a->size; i++) s += a->data[i] * b->data[i];
+    return s;
+}
+
+// ── Copy ──────────────────────────────────────
+TaipanTensor *__taipan_tensor_copy(TaipanTensor *t) {
+    if (!t) return NULL;
+    TaipanTensor *out = __taipan_tensor_1d(t->size);
+    memcpy(out->data, t->data, (size_t)t->size * sizeof(float));
+    memcpy(out->shape,   t->shape,   (size_t)t->ndim * sizeof(int32_t));
+    memcpy(out->strides, t->strides, (size_t)t->ndim * sizeof(int32_t));
+    out->ndim = t->ndim;
+    return out;
+}
+
+// ── Print ─────────────────────────────────────
+void __taipan_tensor_print(TaipanTensor *t) {
+    if (!t) { printf("tensor(NULL)\n"); return; }
+    printf("tensor(shape=[");
+    for (int i=0;i<t->ndim;i++) { if(i) printf(","); printf("%d",t->shape[i]); }
+    printf("], data=[");
+    int show = t->size > 8 ? 8 : t->size;
+    for (int i=0;i<show;i++) { if(i) printf(", "); printf("%.4f",t->data[i]); }
+    if (t->size > 8) printf(", ...");
+    printf("])\n");
+}
+
+// ── Save / Load (binary format) ───────────────
+int32_t __taipan_tensor_save(TaipanTensor *t, const char *path) {
+    if (!t) return -1;
+    FILE *f = fopen(path, "wb");
+    if (!f) return -1;
+    fwrite(&t->ndim, sizeof(int32_t), 1, f);
+    fwrite(t->shape, sizeof(int32_t), (size_t)t->ndim, f);
+    fwrite(t->data,  sizeof(float),   (size_t)t->size, f);
+    fclose(f);
+    return 0;
+}
+TaipanTensor *__taipan_tensor_load(const char *path) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return NULL;
+    int32_t ndim;
+    fread(&ndim, sizeof(int32_t), 1, f);
+    int32_t *shape = malloc(sizeof(int32_t) * (size_t)ndim);
+    fread(shape, sizeof(int32_t), (size_t)ndim, f);
+    TaipanTensor *t = __taipan_tensor_new(shape, ndim);
+    free(shape);
+    fread(t->data, sizeof(float), (size_t)t->size, f);
+    fclose(f);
+    return t;
+}
