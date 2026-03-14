@@ -1425,3 +1425,166 @@ void *__taipan_nn_mse_backward(void *pred, void *target) {
         g->data[i] = scale * (p->data[i] - t->data[i]);
     return (void*)g;
 }
+
+// ─────────────────────────────────────────────
+//  std.async — Fiber-based coroutine scheduler
+//  Uses POSIX ucontext for stack switching
+// ─────────────────────────────────────────────
+#include <ucontext.h>
+#include <sys/time.h>
+
+#define TAIPAN_MAX_FIBERS  256
+#define TAIPAN_STACK_SIZE  (64 * 1024)  // 64KB per fiber
+
+typedef enum {
+    FIBER_READY,
+    FIBER_RUNNING,
+    FIBER_WAITING,
+    FIBER_DONE
+} FiberState;
+
+typedef struct {
+    ucontext_t  ctx;
+    char       *stack;
+    FiberState  state;
+    int32_t     id;
+    int64_t     wake_time;   // for async_sleep
+    void      (*fn)(void);   // fiber function
+} TaipanFiber;
+
+static TaipanFiber  fibers[TAIPAN_MAX_FIBERS];
+static int32_t      fiber_count   = 0;
+static int32_t      current_fiber = -1;
+static ucontext_t   scheduler_ctx;
+
+static int64_t now_ms(void) {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (int64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000;
+}
+
+static void fiber_entry(void) {
+    TaipanFiber *f = &fibers[current_fiber];
+    f->fn();
+    f->state = FIBER_DONE;
+    swapcontext(&f->ctx, &scheduler_ctx);
+}
+
+// ── Public API ────────────────────────────────
+
+// Initialize async runtime
+void __taipan_async_init(void) {
+    memset(fibers, 0, sizeof(fibers));
+    fiber_count   = 0;
+    current_fiber = -1;
+}
+
+// Spawn a new fiber — takes a function pointer as i8*
+int32_t __taipan_async_spawn(void (*fn)(void)) {
+    if (fiber_count >= TAIPAN_MAX_FIBERS) return -1;
+    int32_t id = fiber_count++;
+    TaipanFiber *f = &fibers[id];
+    f->id        = id;
+    f->state     = FIBER_READY;
+    f->fn        = fn;
+    f->wake_time = 0;
+    f->stack     = malloc(TAIPAN_STACK_SIZE);
+    getcontext(&f->ctx);
+    f->ctx.uc_stack.ss_sp   = f->stack;
+    f->ctx.uc_stack.ss_size = TAIPAN_STACK_SIZE;
+    f->ctx.uc_link          = &scheduler_ctx;
+    makecontext(&f->ctx, fiber_entry, 0);
+    return id;
+}
+
+// Yield to scheduler
+void __taipan_async_yield(void) {
+    if (current_fiber < 0) return;
+    TaipanFiber *f = &fibers[current_fiber];
+    f->state = FIBER_READY;
+    swapcontext(&f->ctx, &scheduler_ctx);
+}
+
+// Sleep for ms milliseconds
+void __taipan_async_sleep(int32_t ms) {
+    if (current_fiber < 0) { usleep((useconds_t)ms * 1000); return; }
+    TaipanFiber *f = &fibers[current_fiber];
+    f->state     = FIBER_WAITING;
+    f->wake_time = now_ms() + ms;
+    swapcontext(&f->ctx, &scheduler_ctx);
+}
+
+// Wait for a fiber to finish
+void __taipan_async_join(int32_t id) {
+    if (id < 0 || id >= fiber_count) return;
+    while (fibers[id].state != FIBER_DONE)
+        __taipan_async_yield();
+}
+
+// Get current fiber id
+int32_t __taipan_async_self(void) { return current_fiber; }
+
+// Run the event loop until all fibers done
+void __taipan_async_run(void) {
+    int running = 1;
+    while (running) {
+        running = 0;
+        int64_t now = now_ms();
+        for (int32_t i = 0; i < fiber_count; i++) {
+            TaipanFiber *f = &fibers[i];
+            if (f->state == FIBER_DONE) continue;
+            running = 1;
+            // Wake sleeping fibers
+            if (f->state == FIBER_WAITING) {
+                if (now >= f->wake_time) f->state = FIBER_READY;
+                else continue;
+            }
+            if (f->state == FIBER_READY) {
+                f->state     = FIBER_RUNNING;
+                current_fiber = i;
+                swapcontext(&scheduler_ctx, &f->ctx);
+                current_fiber = -1;
+            }
+        }
+    }
+    // cleanup stacks
+    for (int32_t i = 0; i < fiber_count; i++)
+        if (fibers[i].stack) { free(fibers[i].stack); fibers[i].stack=NULL; }
+    fiber_count = 0;
+}
+
+// Channel (simple message passing between fibers)
+#define CHAN_BUF 64
+typedef struct {
+    char    *msgs[CHAN_BUF];
+    int32_t  head, tail, count;
+} TaipanChan;
+
+void *__taipan_chan_new(void) {
+    TaipanChan *c = calloc(1, sizeof(TaipanChan));
+    return (void*)c;
+}
+int32_t __taipan_chan_send(void *cp, const char *msg) {
+    TaipanChan *c = (TaipanChan*)cp;
+    if (c->count >= CHAN_BUF) return -1;
+    c->msgs[c->tail] = strdup(msg);
+    c->tail = (c->tail + 1) % CHAN_BUF;
+    c->count++;
+    return 0;
+}
+char *__taipan_chan_recv(void *cp) {
+    TaipanChan *c = (TaipanChan*)cp;
+    while (c->count == 0) __taipan_async_yield();
+    char *msg = c->msgs[c->head];
+    c->head = (c->head + 1) % CHAN_BUF;
+    c->count--;
+    return msg;
+}
+int32_t __taipan_chan_len(void *cp) {
+    return ((TaipanChan*)cp)->count;
+}
+void __taipan_chan_free(void *cp) {
+    TaipanChan *c = (TaipanChan*)cp;
+    for (int i=0;i<CHAN_BUF;i++) if(c->msgs[i]) free(c->msgs[i]);
+    free(c);
+}

@@ -902,6 +902,19 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
                     {"nn_adam_step",        "@__taipan_nn_adam_step",        "void"},
                     {"nn_adam_free",        "@__taipan_nn_adam_free",        "void"},
                     {"nn_mse_backward",     "@__taipan_nn_mse_backward",     "i8*"},
+                    // std.async
+                    {"async_init",  "@__taipan_async_init",  "void"},
+                    {"async_spawn", "@__taipan_async_spawn", "i32"},
+                    {"async_yield", "@__taipan_async_yield", "void"},
+                    {"async_sleep", "@__taipan_async_sleep", "void"},
+                    {"async_join",  "@__taipan_async_join",  "void"},
+                    {"async_self",  "@__taipan_async_self",  "i32"},
+                    {"async_run",   "@__taipan_async_run",   "void"},
+                    {"chan_new",     "@__taipan_chan_new",     "i8*"},
+                    {"chan_send",    "@__taipan_chan_send",    "i32"},
+                    {"chan_recv",    "@__taipan_chan_recv",    "i8*"},
+                    {"chan_len",     "@__taipan_chan_len",     "i32"},
+                    {"chan_free",    "@__taipan_chan_free",    "void"},
                     // str_len alias
                     {"str_len", "@__taipan_str_len", "i32"},
                     {NULL, NULL, NULL}
@@ -1726,6 +1739,19 @@ void codegen_run(Codegen *cg, ASTNode *program) {
     fputs("declare void @__taipan_nn_adam_step(i8*, i8*, float)\n", cg->out);
     fputs("declare void @__taipan_nn_adam_free(i8*)\n", cg->out);
     fputs("declare i8* @__taipan_nn_mse_backward(i8*, i8*)\n", cg->out);
+    // std.async
+    fputs("declare void @__taipan_async_init()\n", cg->out);
+    fputs("declare i32 @__taipan_async_spawn(i8*)\n", cg->out);
+    fputs("declare void @__taipan_async_yield()\n", cg->out);
+    fputs("declare void @__taipan_async_sleep(i32)\n", cg->out);
+    fputs("declare void @__taipan_async_join(i32)\n", cg->out);
+    fputs("declare i32 @__taipan_async_self()\n", cg->out);
+    fputs("declare void @__taipan_async_run()\n", cg->out);
+    fputs("declare i8* @__taipan_chan_new()\n", cg->out);
+    fputs("declare i32 @__taipan_chan_send(i8*, i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_chan_recv(i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_chan_len(i8*)\n", cg->out);
+    fputs("declare void @__taipan_chan_free(i8*)\n", cg->out);
     for (int i = 0; i < cg->str_count; i++) {
         const char *s = cg->str_literals[i];
         // Convert \n \t etc to LLVM hex escapes and count bytes

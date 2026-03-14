@@ -175,3 +175,31 @@ int32_t __taipan_set_has    (void *s, const char *val);
 int32_t __taipan_set_remove (void *s, const char *val);
 int32_t __taipan_set_size   (void *s);
 void    __taipan_set_free   (void *s);
+
+// std.async
+void    __taipan_async_init  (void);
+int32_t __taipan_async_spawn (void (*fn)(void));
+void    __taipan_async_yield (void);
+void    __taipan_async_sleep (int32_t ms);
+void    __taipan_async_join  (int32_t id);
+int32_t __taipan_async_self  (void);
+void    __taipan_async_run   (void);
+void   *__taipan_chan_new     (void);
+int32_t __taipan_chan_send    (void *c, const char *msg);
+char   *__taipan_chan_recv    (void *c);
+int32_t __taipan_chan_len     (void *c);
+void    __taipan_chan_free    (void *c);
+
+// std.async
+void    __taipan_async_init  (void);
+int32_t __taipan_async_spawn (void (*fn)(void));
+void    __taipan_async_yield (void);
+void    __taipan_async_sleep (int32_t ms);
+void    __taipan_async_join  (int32_t id);
+int32_t __taipan_async_self  (void);
+void    __taipan_async_run   (void);
+void   *__taipan_chan_new     (void);
+int32_t __taipan_chan_send    (void *c, const char *msg);
+char   *__taipan_chan_recv    (void *c);
+int32_t __taipan_chan_len     (void *c);
+void    __taipan_chan_free    (void *c);

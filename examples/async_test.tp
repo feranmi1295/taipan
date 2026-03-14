@@ -1,0 +1,64 @@
+use std.io
+use std.async
+use std.string
+
+fn worker_a() {
+    println("fiber A: start")
+    async_sleep(10)
+    println("fiber A: after sleep")
+    async_yield()
+    println("fiber A: done")
+}
+
+fn worker_b() {
+    println("fiber B: start")
+    async_yield()
+    println("fiber B: resumed")
+    async_sleep(5)
+    println("fiber B: done")
+}
+
+fn counter() {
+    let i: i32 = 0
+    while i < 3 {
+        print("counter: ")
+        println(i)
+        async_yield()
+        i += 1
+    }
+    println("counter: done")
+}
+
+fn main() {
+    println("=== Async Fiber Test ===")
+    async_init()
+
+    let fa: i32 = async_spawn(worker_a)
+    let fb: i32 = async_spawn(worker_b)
+    let fc: i32 = async_spawn(counter)
+
+    print("spawned fibers: ")
+    println(fa)
+
+    async_run()
+    println("=== all fibers done ===")
+
+    // Channel test
+    println("")
+    println("=== Channel Test ===")
+    async_init()
+    let ch = chan_new()
+    chan_send(ch, "hello from main")
+    chan_send(ch, "second message")
+    chan_send(ch, "third message")
+
+    println("channel length:")
+    println(chan_len(ch))
+
+    let m1: str = chan_recv(ch)
+    println(m1)
+    let m2: str = chan_recv(ch)
+    println(m2)
+    println("remaining:")
+    println(chan_len(ch))
+}

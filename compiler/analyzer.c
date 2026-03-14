@@ -838,6 +838,19 @@ void analyzer_init(Analyzer *a) {
     { TypeInfo **p=calloc(3,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); p[2]=type_new(TY_F32); scope_define_fn(a,"nn_adam_step",p,3,type_new(TY_VOID)); }
     { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"nn_adam_free",p,1,type_new(TY_VOID)); }
     { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); scope_define_fn(a,"nn_mse_backward",p,2,type_new(TY_ANY)); }
+    // std.async
+    { scope_define_fn(a,"async_init",NULL,0,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"async_spawn",p,1,type_new(TY_I32)); }
+    { scope_define_fn(a,"async_yield",NULL,0,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); scope_define_fn(a,"async_sleep",p,1,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); scope_define_fn(a,"async_join",p,1,type_new(TY_VOID)); }
+    { scope_define_fn(a,"async_self",NULL,0,type_new(TY_I32)); }
+    { scope_define_fn(a,"async_run",NULL,0,type_new(TY_VOID)); }
+    { scope_define_fn(a,"chan_new",NULL,0,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_STR); scope_define_fn(a,"chan_send",p,2,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"chan_recv",p,1,type_new(TY_STR)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"chan_len",p,1,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"chan_free",p,1,type_new(TY_VOID)); }
 }
 
 void analyzer_run(Analyzer *a, ASTNode *program) {
