@@ -251,3 +251,25 @@ void   *__taipan_data_load_csv     (const char *path, int32_t n_features, int32_
 int32_t __taipan_data_save_csv     (void *d, const char *path);
 void   *__taipan_data_get_x_tensor (void *d, int32_t row);
 void   *__taipan_data_get_y_tensor (void *d, int32_t row);
+
+// std.transformer
+void   *__taipan_transformer_config     (int32_t vocab, int32_t seq, int32_t d_model, int32_t heads, int32_t layers, int32_t d_ff);
+void   *__taipan_embed_new              (int32_t vocab, int32_t seq, int32_t d_model);
+void   *__taipan_embed_tensor           (void *e, void *ids);
+void    __taipan_embed_free             (void *e);
+void   *__taipan_mha_new                (int32_t d_model, int32_t n_heads, int32_t causal);
+void   *__taipan_mha_forward            (void *m, void *x);
+void    __taipan_mha_free               (void *m);
+void   *__taipan_ffn_new                (int32_t d_model, int32_t d_ff);
+void   *__taipan_ffn_forward            (void *f, void *x);
+void    __taipan_ffn_free               (void *f);
+void   *__taipan_block_new              (int32_t d_model, int32_t n_heads, int32_t d_ff, int32_t causal);
+void   *__taipan_block_forward          (void *b, void *x);
+void    __taipan_block_free             (void *b);
+void   *__taipan_transformer_new        (void *cfg);
+void   *__taipan_transformer_forward    (void *t, void *ids);
+void   *__taipan_transformer_next_probs (void *t, void *ids);
+void   *__taipan_transformer_generate   (void *t, void *ids, int32_t n_new);
+float   __taipan_transformer_loss       (void *logits, void *targets);
+void    __taipan_transformer_free       (void *t);
+int32_t __taipan_transformer_param_count(void *t);

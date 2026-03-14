@@ -960,6 +960,27 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
                     {"data_save_csv",     "@__taipan_data_save_csv",     "i32"},
                     {"data_get_x_tensor", "@__taipan_data_get_x_tensor", "i8*"},
                     {"data_get_y_tensor", "@__taipan_data_get_y_tensor", "i8*"},
+                    // std.transformer
+                    {"transformer_config",      "@__taipan_transformer_config",      "i8*"},
+                    {"embed_new",               "@__taipan_embed_new",               "i8*"},
+                    {"embed_tensor",            "@__taipan_embed_tensor",            "i8*"},
+                    {"embed_free",              "@__taipan_embed_free",              "void"},
+                    {"mha_new",                 "@__taipan_mha_new",                 "i8*"},
+                    {"mha_forward",             "@__taipan_mha_forward",             "i8*"},
+                    {"mha_free",                "@__taipan_mha_free",                "void"},
+                    {"ffn_new",                 "@__taipan_ffn_new",                 "i8*"},
+                    {"ffn_forward",             "@__taipan_ffn_forward",             "i8*"},
+                    {"ffn_free",                "@__taipan_ffn_free",                "void"},
+                    {"block_new",               "@__taipan_block_new",               "i8*"},
+                    {"block_forward",           "@__taipan_block_forward",           "i8*"},
+                    {"block_free",              "@__taipan_block_free",              "void"},
+                    {"transformer_new",         "@__taipan_transformer_new",         "i8*"},
+                    {"transformer_forward",     "@__taipan_transformer_forward",     "i8*"},
+                    {"transformer_next_probs",  "@__taipan_transformer_next_probs",  "i8*"},
+                    {"transformer_generate",    "@__taipan_transformer_generate",    "i8*"},
+                    {"transformer_loss",        "@__taipan_transformer_loss",        "float"},
+                    {"transformer_free",        "@__taipan_transformer_free",        "void"},
+                    {"transformer_param_count", "@__taipan_transformer_param_count", "i32"},
                     // str_len alias
                     {"str_len", "@__taipan_str_len", "i32"},
                     {NULL, NULL, NULL}
@@ -1842,6 +1863,27 @@ void codegen_run(Codegen *cg, ASTNode *program) {
     fputs("declare i32 @__taipan_data_save_csv(i8*, i8*)\n", cg->out);
     fputs("declare i8* @__taipan_data_get_x_tensor(i8*, i32)\n", cg->out);
     fputs("declare i8* @__taipan_data_get_y_tensor(i8*, i32)\n", cg->out);
+    // std.transformer
+    fputs("declare i8* @__taipan_transformer_config(i32, i32, i32, i32, i32, i32)\n", cg->out);
+    fputs("declare i8* @__taipan_embed_new(i32, i32, i32)\n", cg->out);
+    fputs("declare i8* @__taipan_embed_tensor(i8*, i8*)\n", cg->out);
+    fputs("declare void @__taipan_embed_free(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_mha_new(i32, i32, i32)\n", cg->out);
+    fputs("declare i8* @__taipan_mha_forward(i8*, i8*)\n", cg->out);
+    fputs("declare void @__taipan_mha_free(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_ffn_new(i32, i32)\n", cg->out);
+    fputs("declare i8* @__taipan_ffn_forward(i8*, i8*)\n", cg->out);
+    fputs("declare void @__taipan_ffn_free(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_block_new(i32, i32, i32, i32)\n", cg->out);
+    fputs("declare i8* @__taipan_block_forward(i8*, i8*)\n", cg->out);
+    fputs("declare void @__taipan_block_free(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_transformer_new(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_transformer_forward(i8*, i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_transformer_next_probs(i8*, i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_transformer_generate(i8*, i8*, i32)\n", cg->out);
+    fputs("declare float @__taipan_transformer_loss(i8*, i8*)\n", cg->out);
+    fputs("declare void @__taipan_transformer_free(i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_transformer_param_count(i8*)\n", cg->out);
     for (int i = 0; i < cg->str_count; i++) {
         const char *s = cg->str_literals[i];
         // Convert \n \t etc to LLVM hex escapes and count bytes

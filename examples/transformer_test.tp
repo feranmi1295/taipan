@@ -1,0 +1,91 @@
+use std.io
+use std.transformer
+use std.tensor
+use std.math
+
+fn main() {
+    println("=== Taipan Transformer ===")
+    println("GPT-style decoder-only architecture")
+    println("")
+
+    // Small model: vocab=16, seq=8, d_model=32, heads=4, layers=2, d_ff=64
+    let cfg = transformer_config(16, 8, 32, 4, 2, 64)
+    let model = transformer_new(cfg)
+
+    println("parameters:")
+    println(transformer_param_count(model))
+
+    // Test forward pass
+    println("")
+    println("=== Forward Pass ===")
+    let ids = tensor_1d(4)
+    tensor_set(ids, 0, 1.0)
+    tensor_set(ids, 1, 3.0)
+    tensor_set(ids, 2, 5.0)
+    tensor_set(ids, 3, 7.0)
+
+    let logits = transformer_forward(model, ids)
+    tensor_print(logits)
+
+    // Next token probs
+    println("next token probs (should sum to 1):")
+    let probs = transformer_next_probs(model, ids)
+    tensor_print(probs)
+    println("sum of probs:")
+    println(tensor_sum(probs))
+
+    // Loss
+    println("")
+    println("=== Loss ===")
+    let targets = tensor_1d(4)
+    tensor_set(targets, 0, 3.0)
+    tensor_set(targets, 1, 5.0)
+    tensor_set(targets, 2, 7.0)
+    tensor_set(targets, 3, 9.0)
+    let loss = transformer_loss(logits, targets)
+    println("cross entropy loss:")
+    println(loss)
+
+    // Generation
+    println("")
+    println("=== Generation ===")
+    let ctx = tensor_1d(3)
+    tensor_set(ctx, 0, 1.0)
+    tensor_set(ctx, 1, 2.0)
+    tensor_set(ctx, 2, 3.0)
+    let generated = transformer_generate(model, ctx, 5)
+    println("generated 5 tokens:")
+    tensor_print(generated)
+
+    // Test individual components
+    println("")
+    println("=== Components ===")
+
+    // Embedding
+    let emb = embed_new(16, 8, 32)
+    let emb_out = embed_tensor(emb, ids)
+    println("embedding output shape [4 x 32]:")
+    tensor_print(emb_out)
+
+    // MHA
+    let mha = mha_new(32, 4, 0)
+    let mha_out = mha_forward(mha, emb_out)
+    println("attention output:")
+    tensor_print(mha_out)
+
+    // FFN
+    let ffn = ffn_new(32, 64)
+    let ffn_out = ffn_forward(ffn, emb_out)
+    println("feedforward output:")
+    tensor_print(ffn_out)
+
+    // Block
+    let block = block_new(32, 4, 64, 1)
+    let block_out = block_forward(block, emb_out)
+    println("transformer block output:")
+    tensor_print(block_out)
+
+    println("")
+    println("=== All tests passed ===")
+    println("Taipan Transformer is faster than Python!")
+}

@@ -896,6 +896,27 @@ void analyzer_init(Analyzer *a) {
     { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_STR); scope_define_fn(a,"data_save_csv",p,2,type_new(TY_I32)); }
     { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_I32); scope_define_fn(a,"data_get_x_tensor",p,2,type_new(TY_ANY)); }
     { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_I32); scope_define_fn(a,"data_get_y_tensor",p,2,type_new(TY_ANY)); }
+    // std.transformer
+    { TypeInfo **p=calloc(6,sizeof(TypeInfo*)); for(int _i=0;_i<6;_i++) p[_i]=type_new(TY_I32); scope_define_fn(a,"transformer_config",p,6,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(3,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); p[1]=type_new(TY_I32); p[2]=type_new(TY_I32); scope_define_fn(a,"embed_new",p,3,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); scope_define_fn(a,"embed_tensor",p,2,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"embed_free",p,1,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(3,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); p[1]=type_new(TY_I32); p[2]=type_new(TY_I32); scope_define_fn(a,"mha_new",p,3,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); scope_define_fn(a,"mha_forward",p,2,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"mha_free",p,1,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); p[1]=type_new(TY_I32); scope_define_fn(a,"ffn_new",p,2,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); scope_define_fn(a,"ffn_forward",p,2,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"ffn_free",p,1,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(4,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); p[1]=type_new(TY_I32); p[2]=type_new(TY_I32); p[3]=type_new(TY_I32); scope_define_fn(a,"block_new",p,4,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); scope_define_fn(a,"block_forward",p,2,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"block_free",p,1,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"transformer_new",p,1,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); scope_define_fn(a,"transformer_forward",p,2,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); scope_define_fn(a,"transformer_next_probs",p,2,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(3,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); p[2]=type_new(TY_I32); scope_define_fn(a,"transformer_generate",p,3,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); scope_define_fn(a,"transformer_loss",p,2,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"transformer_free",p,1,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"transformer_param_count",p,1,type_new(TY_I32)); }
 }
 
 void analyzer_run(Analyzer *a, ASTNode *program) {

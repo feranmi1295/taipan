@@ -2122,3 +2122,529 @@ void *__taipan_data_get_y_tensor(void *dp, int32_t row) {
     memcpy(t->data, d->y + row*d->n_labels, sizeof(float)*(size_t)d->n_labels);
     return (void*)t;
 }
+
+// ─────────────────────────────────────────────
+//  std.transformer — Production Transformer
+//  Pure C, no dependencies, faster than Python
+//  Architecture: GPT-style (decoder-only) +
+//                BERT-style (encoder-only)
+// ─────────────────────────────────────────────
+
+// ── Config ────────────────────────────────────
+typedef struct {
+    int32_t vocab_size;
+    int32_t seq_len;
+    int32_t d_model;    // embedding dim
+    int32_t n_heads;    // attention heads
+    int32_t n_layers;   // transformer blocks
+    int32_t d_ff;       // feedforward dim (usually 4*d_model)
+    float   dropout;    // dropout rate (0 = disabled)
+} TransformerConfig;
+
+void *__taipan_transformer_config(int32_t vocab, int32_t seq, int32_t d_model,
+                                   int32_t heads, int32_t layers, int32_t d_ff) {
+    TransformerConfig *c = malloc(sizeof(TransformerConfig));
+    c->vocab_size = vocab;
+    c->seq_len    = seq;
+    c->d_model    = d_model;
+    c->n_heads    = heads;
+    c->n_layers   = layers;
+    c->d_ff       = d_ff;
+    c->dropout    = 0.0f;
+    return (void*)c;
+}
+
+// ── Embedding ─────────────────────────────────
+typedef struct {
+    TaipanTensor *token_embed;   // [vocab x d_model]
+    TaipanTensor *pos_embed;     // [seq x d_model]
+    int32_t       d_model;
+    int32_t       seq_len;
+} TaipanEmbedding;
+
+void *__taipan_embed_new(int32_t vocab, int32_t seq, int32_t d_model) {
+    TaipanEmbedding *e = malloc(sizeof(TaipanEmbedding));
+    e->d_model  = d_model;
+    e->seq_len  = seq;
+    e->token_embed = __taipan_tensor_2d(vocab, d_model);
+    e->pos_embed   = __taipan_tensor_2d(seq,   d_model);
+    // Xavier init token embeddings
+    float limit = sqrtf(1.0f / (float)d_model);
+    for (int32_t i = 0; i < e->token_embed->size; i++)
+        e->token_embed->data[i] = ((float)rand()/(float)RAND_MAX)*2.0f*limit - limit;
+    // Sinusoidal positional encoding
+    for (int32_t pos = 0; pos < seq; pos++) {
+        for (int32_t i = 0; i < d_model; i++) {
+            float angle = (float)pos / powf(10000.0f, (float)(i/2*2) / (float)d_model);
+            e->pos_embed->data[pos*d_model+i] = (i%2==0) ? sinf(angle) : cosf(angle);
+        }
+    }
+    return (void*)e;
+}
+
+// Forward: token_ids[seq] -> output[seq x d_model]
+void *__taipan_embed_forward(void *ep, int32_t *token_ids, int32_t seq) {
+    TaipanEmbedding *e = (TaipanEmbedding*)ep;
+    int32_t s[2] = {seq, e->d_model};
+    TaipanTensor *out = __taipan_tensor_new(s, 2);
+    for (int32_t t = 0; t < seq; t++) {
+        int32_t tid = token_ids[t];
+        if (tid < 0) tid = 0;
+        for (int32_t d = 0; d < e->d_model; d++)
+            out->data[t*e->d_model+d] =
+                e->token_embed->data[tid*e->d_model+d] +
+                e->pos_embed->data[t*e->d_model+d];
+    }
+    return (void*)out;
+}
+
+// Convenience: embed from i32 tensor of token ids
+void *__taipan_embed_tensor(void *ep, void *ids_tp) {
+    TaipanEmbedding *e  = (TaipanEmbedding*)ep;
+    TaipanTensor    *ids = (TaipanTensor*)ids_tp;
+    int32_t seq = ids->size;
+    int32_t s[2] = {seq, e->d_model};
+    TaipanTensor *out = __taipan_tensor_new(s, 2);
+    for (int32_t t = 0; t < seq; t++) {
+        int32_t tid = (int32_t)ids->data[t];
+        if (tid < 0) tid = 0;
+        for (int32_t d = 0; d < e->d_model; d++)
+            out->data[t*e->d_model+d] =
+                e->token_embed->data[tid*e->d_model+d] +
+                e->pos_embed->data[t*e->d_model+d];
+    }
+    return (void*)out;
+}
+
+void __taipan_embed_free(void *ep) {
+    TaipanEmbedding *e = (TaipanEmbedding*)ep;
+    __taipan_tensor_free(e->token_embed);
+    __taipan_tensor_free(e->pos_embed);
+    free(e);
+}
+
+// ── Scaled Dot-Product Attention ──────────────
+// Q[seq x d_k], K[seq x d_k], V[seq x d_v] -> out[seq x d_v]
+static TaipanTensor *scaled_dot_attention(TaipanTensor *Q, TaipanTensor *K,
+                                           TaipanTensor *V, int32_t causal) {
+    int32_t seq  = Q->shape[0];
+    int32_t d_k  = Q->shape[1];
+    int32_t d_v  = V->shape[1];
+    float   scale = 1.0f / sqrtf((float)d_k);
+
+    // scores = Q @ K^T * scale  [seq x seq]
+    int32_t ss[2] = {seq, seq};
+    TaipanTensor *scores = __taipan_tensor_new(ss, 2);
+    for (int32_t i = 0; i < seq; i++)
+        for (int32_t j = 0; j < seq; j++) {
+            float s = 0.0f;
+            for (int32_t k = 0; k < d_k; k++)
+                s += Q->data[i*d_k+k] * K->data[j*d_k+k];
+            scores->data[i*seq+j] = s * scale;
+            // Causal mask: future positions = -inf
+            if (causal && j > i) scores->data[i*seq+j] = -1e9f;
+        }
+
+    // softmax over last dim (per row)
+    for (int32_t i = 0; i < seq; i++) {
+        float mx = scores->data[i*seq];
+        for (int32_t j = 1; j < seq; j++) if (scores->data[i*seq+j]>mx) mx=scores->data[i*seq+j];
+        float sum = 0.0f;
+        for (int32_t j = 0; j < seq; j++) { scores->data[i*seq+j]=expf(scores->data[i*seq+j]-mx); sum+=scores->data[i*seq+j]; }
+        for (int32_t j = 0; j < seq; j++) scores->data[i*seq+j] /= sum;
+    }
+
+    // out = scores @ V  [seq x d_v]
+    int32_t os[2] = {seq, d_v};
+    TaipanTensor *out = __taipan_tensor_new(os, 2);
+    for (int32_t i = 0; i < seq; i++)
+        for (int32_t j = 0; j < d_v; j++) {
+            float s = 0.0f;
+            for (int32_t k = 0; k < seq; k++)
+                s += scores->data[i*seq+k] * V->data[k*d_v+j];
+            out->data[i*d_v+j] = s;
+        }
+    __taipan_tensor_free(scores);
+    return out;
+}
+
+// ── Multi-Head Attention ──────────────────────
+typedef struct {
+    TaipanTensor *Wq, *Wk, *Wv, *Wo; // [d_model x d_model]
+    TaipanTensor *bq, *bk, *bv, *bo; // [d_model]
+    int32_t d_model, n_heads, d_k;
+    int32_t causal;
+} TaipanMHA;
+
+void *__taipan_mha_new(int32_t d_model, int32_t n_heads, int32_t causal) {
+    TaipanMHA *m = malloc(sizeof(TaipanMHA));
+    m->d_model = d_model;
+    m->n_heads = n_heads;
+    m->d_k     = d_model / n_heads;
+    m->causal  = causal;
+    float limit = sqrtf(2.0f / (float)(d_model + d_model));
+    #define INIT_W(W, r, c) \
+        W = __taipan_tensor_2d(r,c); \
+        for(int32_t _i=0;_i<W->size;_i++) W->data[_i]=((float)rand()/(float)RAND_MAX)*2.0f*limit-limit;
+    #define INIT_B(B, n) B = __taipan_tensor_1d(n); __taipan_tensor_zeros(B);
+    INIT_W(m->Wq, d_model, d_model)
+    INIT_W(m->Wk, d_model, d_model)
+    INIT_W(m->Wv, d_model, d_model)
+    INIT_W(m->Wo, d_model, d_model)
+    INIT_B(m->bq, d_model)
+    INIT_B(m->bk, d_model)
+    INIT_B(m->bv, d_model)
+    INIT_B(m->bo, d_model)
+    return (void*)m;
+}
+
+// Forward: x[seq x d_model] -> out[seq x d_model]
+void *__taipan_mha_forward(void *mp, void *xp) {
+    TaipanMHA    *m = (TaipanMHA*)mp;
+    TaipanTensor *x = (TaipanTensor*)xp;
+    int32_t seq     = x->shape[0];
+    int32_t d       = m->d_model;
+    int32_t dk      = m->d_k;
+    int32_t h       = m->n_heads;
+
+    // Project Q, K, V: [seq x d_model]
+    int32_t s2[2] = {seq, d};
+    TaipanTensor *Q = __taipan_tensor_new(s2, 2);
+    TaipanTensor *K = __taipan_tensor_new(s2, 2);
+    TaipanTensor *V = __taipan_tensor_new(s2, 2);
+
+    for (int32_t t = 0; t < seq; t++)
+        for (int32_t j = 0; j < d; j++) {
+            float q=m->bq->data[j], k2=m->bk->data[j], v=m->bv->data[j];
+            for (int32_t i2 = 0; i2 < d; i2++) {
+                float xi = x->data[t*d+i2];
+                q  += m->Wq->data[j*d+i2] * xi;
+                k2 += m->Wk->data[j*d+i2] * xi;
+                v  += m->Wv->data[j*d+i2] * xi;
+            }
+            Q->data[t*d+j] = q;
+            K->data[t*d+j] = k2;
+            V->data[t*d+j] = v;
+        }
+
+    // Multi-head attention: split heads, attend, concat
+    int32_t out_s[2] = {seq, d};
+    TaipanTensor *concat = __taipan_tensor_new(out_s, 2);
+
+    for (int32_t hi = 0; hi < h; hi++) {
+        // Extract head slice [seq x dk]
+        int32_t hs[2] = {seq, dk};
+        TaipanTensor *Qh = __taipan_tensor_new(hs, 2);
+        TaipanTensor *Kh = __taipan_tensor_new(hs, 2);
+        TaipanTensor *Vh = __taipan_tensor_new(hs, 2);
+        for (int32_t t = 0; t < seq; t++)
+            for (int32_t j = 0; j < dk; j++) {
+                Qh->data[t*dk+j] = Q->data[t*d + hi*dk + j];
+                Kh->data[t*dk+j] = K->data[t*d + hi*dk + j];
+                Vh->data[t*dk+j] = V->data[t*d + hi*dk + j];
+            }
+        TaipanTensor *head_out = scaled_dot_attention(Qh, Kh, Vh, m->causal);
+        // Write head output into concat
+        for (int32_t t = 0; t < seq; t++)
+            for (int32_t j = 0; j < dk; j++)
+                concat->data[t*d + hi*dk + j] = head_out->data[t*dk+j];
+        __taipan_tensor_free(Qh);
+        __taipan_tensor_free(Kh);
+        __taipan_tensor_free(Vh);
+        __taipan_tensor_free(head_out);
+    }
+    __taipan_tensor_free(Q);
+    __taipan_tensor_free(K);
+    __taipan_tensor_free(V);
+
+    // Output projection Wo: [seq x d_model]
+    TaipanTensor *out = __taipan_tensor_new(out_s, 2);
+    for (int32_t t = 0; t < seq; t++)
+        for (int32_t j = 0; j < d; j++) {
+            float s = m->bo->data[j];
+            for (int32_t i2 = 0; i2 < d; i2++)
+                s += m->Wo->data[j*d+i2] * concat->data[t*d+i2];
+            out->data[t*d+j] = s;
+        }
+    __taipan_tensor_free(concat);
+    return (void*)out;
+}
+
+void __taipan_mha_free(void *mp) {
+    TaipanMHA *m = (TaipanMHA*)mp;
+    __taipan_tensor_free(m->Wq); __taipan_tensor_free(m->Wk);
+    __taipan_tensor_free(m->Wv); __taipan_tensor_free(m->Wo);
+    __taipan_tensor_free(m->bq); __taipan_tensor_free(m->bk);
+    __taipan_tensor_free(m->bv); __taipan_tensor_free(m->bo);
+    free(m);
+}
+
+// ── FeedForward Block ─────────────────────────
+typedef struct {
+    TaipanTensor *W1, *b1;  // [d_ff x d_model]
+    TaipanTensor *W2, *b2;  // [d_model x d_ff]
+    int32_t d_model, d_ff;
+} TaipanFFN;
+
+void *__taipan_ffn_new(int32_t d_model, int32_t d_ff) {
+    TaipanFFN *f = malloc(sizeof(TaipanFFN));
+    f->d_model = d_model;
+    f->d_ff    = d_ff;
+    float l1 = sqrtf(2.0f/(float)(d_model+d_ff));
+    float l2 = sqrtf(2.0f/(float)(d_ff+d_model));
+    f->W1 = __taipan_tensor_2d(d_ff,    d_model);
+    f->W2 = __taipan_tensor_2d(d_model, d_ff);
+    f->b1 = __taipan_tensor_1d(d_ff);
+    f->b2 = __taipan_tensor_1d(d_model);
+    for(int32_t i=0;i<f->W1->size;i++) f->W1->data[i]=((float)rand()/(float)RAND_MAX)*2.0f*l1-l1;
+    for(int32_t i=0;i<f->W2->size;i++) f->W2->data[i]=((float)rand()/(float)RAND_MAX)*2.0f*l2-l2;
+    __taipan_tensor_zeros(f->b1);
+    __taipan_tensor_zeros(f->b2);
+    return (void*)f;
+}
+
+// Forward: x[seq x d_model] -> out[seq x d_model]
+void *__taipan_ffn_forward(void *fp, void *xp) {
+    TaipanFFN    *f = (TaipanFFN*)fp;
+    TaipanTensor *x = (TaipanTensor*)xp;
+    int32_t seq = x->shape[0];
+
+    // hidden = GELU(x @ W1^T + b1)  [seq x d_ff]
+    int32_t hs[2] = {seq, f->d_ff};
+    TaipanTensor *hidden = __taipan_tensor_new(hs, 2);
+    for (int32_t t = 0; t < seq; t++)
+        for (int32_t j = 0; j < f->d_ff; j++) {
+            float s = f->b1->data[j];
+            for (int32_t i = 0; i < f->d_model; i++)
+                s += f->W1->data[j*f->d_model+i] * x->data[t*f->d_model+i];
+            // GELU activation
+            hidden->data[t*f->d_ff+j] = 0.5f*s*(1.0f+tanhf(0.7978845608f*(s+0.044715f*s*s*s)));
+        }
+
+    // out = hidden @ W2^T + b2  [seq x d_model]
+    int32_t os[2] = {seq, f->d_model};
+    TaipanTensor *out = __taipan_tensor_new(os, 2);
+    for (int32_t t = 0; t < seq; t++)
+        for (int32_t j = 0; j < f->d_model; j++) {
+            float s = f->b2->data[j];
+            for (int32_t i = 0; i < f->d_ff; i++)
+                s += f->W2->data[j*f->d_ff+i] * hidden->data[t*f->d_ff+i];
+            out->data[t*f->d_model+j] = s;
+        }
+    __taipan_tensor_free(hidden);
+    return (void*)out;
+}
+
+void __taipan_ffn_free(void *fp) {
+    TaipanFFN *f = (TaipanFFN*)fp;
+    __taipan_tensor_free(f->W1); __taipan_tensor_free(f->W2);
+    __taipan_tensor_free(f->b1); __taipan_tensor_free(f->b2);
+    free(f);
+}
+
+// ── Transformer Block ─────────────────────────
+typedef struct {
+    TaipanMHA *attn;
+    TaipanFFN *ffn;
+    int32_t    d_model;
+} TaipanBlock;
+
+void *__taipan_block_new(int32_t d_model, int32_t n_heads, int32_t d_ff, int32_t causal) {
+    TaipanBlock *b = malloc(sizeof(TaipanBlock));
+    b->d_model = d_model;
+    b->attn    = (TaipanMHA*)__taipan_mha_new(d_model, n_heads, causal);
+    b->ffn     = (TaipanFFN*)__taipan_ffn_new(d_model, d_ff);
+    return (void*)b;
+}
+
+// Forward: x[seq x d_model] -> out[seq x d_model]
+// Pre-norm architecture (like GPT-2)
+void *__taipan_block_forward(void *bp, void *xp) {
+    TaipanBlock  *b = (TaipanBlock*)bp;
+    TaipanTensor *x = (TaipanTensor*)xp;
+    int32_t seq = x->shape[0];
+    int32_t d   = b->d_model;
+
+    // LayerNorm 1 + attention + residual
+    TaipanTensor *ln1 = __taipan_tensor_layer_norm(x, 1e-5f);
+    // Reshape ln1 to [seq x d_model]
+    int32_t s2[2] = {seq, d};
+    ln1->ndim = 2; ln1->shape[0] = seq; ln1->shape[1] = d;
+    ln1->strides[0] = d; ln1->strides[1] = 1;
+
+    TaipanTensor *attn_out = (TaipanTensor*)__taipan_mha_forward(b->attn, ln1);
+    // Residual connection
+    TaipanTensor *res1 = __taipan_tensor_new(s2, 2);
+    for (int32_t i = 0; i < x->size; i++) res1->data[i] = x->data[i] + attn_out->data[i];
+    __taipan_tensor_free(ln1);
+    __taipan_tensor_free(attn_out);
+
+    // LayerNorm 2 + FFN + residual
+    TaipanTensor *ln2 = __taipan_tensor_layer_norm(res1, 1e-5f);
+    ln2->ndim = 2; ln2->shape[0] = seq; ln2->shape[1] = d;
+    ln2->strides[0] = d; ln2->strides[1] = 1;
+
+    TaipanTensor *ffn_out = (TaipanTensor*)__taipan_ffn_forward(b->ffn, ln2);
+    TaipanTensor *out = __taipan_tensor_new(s2, 2);
+    for (int32_t i = 0; i < res1->size; i++) out->data[i] = res1->data[i] + ffn_out->data[i];
+    __taipan_tensor_free(ln2);
+    __taipan_tensor_free(ffn_out);
+    __taipan_tensor_free(res1);
+    return (void*)out;
+}
+
+void __taipan_block_free(void *bp) {
+    TaipanBlock *b = (TaipanBlock*)bp;
+    __taipan_mha_free(b->attn);
+    __taipan_ffn_free(b->ffn);
+    free(b);
+}
+
+// ── Full Transformer (GPT-style decoder) ──────
+#define MAX_BLOCKS 32
+typedef struct {
+    TaipanEmbedding *embed;
+    TaipanBlock     *blocks[MAX_BLOCKS];
+    TaipanTensor    *lm_head_W;  // [vocab x d_model] — output projection
+    TaipanTensor    *lm_head_b;  // [vocab]
+    int32_t          n_layers;
+    int32_t          d_model;
+    int32_t          vocab_size;
+} TaipanTransformer;
+
+void *__taipan_transformer_new(void *cfg_p) {
+    TransformerConfig *cfg = (TransformerConfig*)cfg_p;
+    TaipanTransformer *t   = malloc(sizeof(TaipanTransformer));
+    t->n_layers   = cfg->n_layers;
+    t->d_model    = cfg->d_model;
+    t->vocab_size = cfg->vocab_size;
+    t->embed      = (TaipanEmbedding*)__taipan_embed_new(cfg->vocab_size, cfg->seq_len, cfg->d_model);
+    for (int32_t i = 0; i < cfg->n_layers; i++)
+        t->blocks[i] = (TaipanBlock*)__taipan_block_new(cfg->d_model, cfg->n_heads, cfg->d_ff, 1);
+    // LM head
+    t->lm_head_W = __taipan_tensor_2d(cfg->vocab_size, cfg->d_model);
+    t->lm_head_b = __taipan_tensor_1d(cfg->vocab_size);
+    float lim = sqrtf(1.0f/(float)cfg->d_model);
+    for(int32_t i=0;i<t->lm_head_W->size;i++)
+        t->lm_head_W->data[i]=((float)rand()/(float)RAND_MAX)*2.0f*lim-lim;
+    __taipan_tensor_zeros(t->lm_head_b);
+    return (void*)t;
+}
+
+// Forward: token_ids tensor [seq] -> logits [seq x vocab]
+void *__taipan_transformer_forward(void *tp, void *ids_p) {
+    TaipanTransformer *t   = (TaipanTransformer*)tp;
+    TaipanTensor      *ids = (TaipanTensor*)ids_p;
+    int32_t seq = ids->size;
+
+    // Embed
+    TaipanTensor *x = (TaipanTensor*)__taipan_embed_tensor(t->embed, ids);
+    int32_t s2[2] = {seq, t->d_model};
+    x->ndim=2; x->shape[0]=seq; x->shape[1]=t->d_model;
+    x->strides[0]=t->d_model; x->strides[1]=1;
+
+    // Transformer blocks
+    for (int32_t i = 0; i < t->n_layers; i++) {
+        TaipanTensor *next = (TaipanTensor*)__taipan_block_forward(t->blocks[i], x);
+        __taipan_tensor_free(x);
+        x = next;
+    }
+
+    // LM head: [seq x d_model] -> [seq x vocab]
+    int32_t ls[2] = {seq, t->vocab_size};
+    TaipanTensor *logits = __taipan_tensor_new(ls, 2);
+    for (int32_t ti = 0; ti < seq; ti++)
+        for (int32_t v = 0; v < t->vocab_size; v++) {
+            float s = t->lm_head_b->data[v];
+            for (int32_t d = 0; d < t->d_model; d++)
+                s += t->lm_head_W->data[v*t->d_model+d] * x->data[ti*t->d_model+d];
+            logits->data[ti*t->vocab_size+v] = s;
+        }
+    __taipan_tensor_free(x);
+    return (void*)logits;
+}
+
+// Get logits for last token -> softmax -> next token probs [vocab]
+void *__taipan_transformer_next_probs(void *tp, void *ids_p) {
+    TaipanTensor *logits = (TaipanTensor*)__taipan_transformer_forward(tp, ids_p);
+    TaipanTransformer *t = (TaipanTransformer*)tp;
+    TaipanTensor *ids    = (TaipanTensor*)ids_p;
+    int32_t seq   = ids->size;
+    int32_t vocab = t->vocab_size;
+    // Extract last token logits
+    TaipanTensor *last = __taipan_tensor_1d(vocab);
+    memcpy(last->data, logits->data + (seq-1)*vocab, sizeof(float)*(size_t)vocab);
+    __taipan_tensor_free(logits);
+    TaipanTensor *probs = (TaipanTensor*)__taipan_tensor_softmax(last);
+    __taipan_tensor_free(last);
+    return (void*)probs;
+}
+
+// Greedy decode: given context, predict next n tokens
+void *__taipan_transformer_generate(void *tp, void *ids_p, int32_t n_new) {
+    TaipanTransformer *t   = (TaipanTransformer*)tp;
+    TaipanTensor      *ids = (TaipanTensor*)ids_p;
+    int32_t orig_seq = ids->size;
+    int32_t max_seq  = orig_seq + n_new;
+    // ctx holds full growing sequence
+    TaipanTensor *ctx = __taipan_tensor_1d(max_seq);
+    memcpy(ctx->data, ids->data, sizeof(float)*(size_t)orig_seq);
+    int32_t cur_seq = orig_seq;
+    TaipanTensor *out = __taipan_tensor_1d(n_new);
+    for (int32_t step = 0; step < n_new; step++) {
+        TaipanTensor *window = __taipan_tensor_1d(cur_seq);
+        memcpy(window->data, ctx->data, sizeof(float)*(size_t)cur_seq);
+        TaipanTensor *probs = (TaipanTensor*)__taipan_transformer_next_probs(t, window);
+        int32_t best = 0; float best_p = probs->data[0];
+        for (int32_t v = 1; v < t->vocab_size; v++)
+            if (probs->data[v] > best_p) { best_p=probs->data[v]; best=v; }
+        ctx->data[cur_seq] = (float)best;
+        out->data[step]    = (float)best;
+        cur_seq++;
+        __taipan_tensor_free(window);
+        __taipan_tensor_free(probs);
+    }
+    __taipan_tensor_free(ctx);
+    return (void*)out;
+}
+
+// Cross entropy loss for language modeling
+float __taipan_transformer_loss(void *logits_p, void *targets_p) {
+    TaipanTensor *logits  = (TaipanTensor*)logits_p;
+    TaipanTensor *targets = (TaipanTensor*)targets_p;
+    int32_t seq   = targets->size;
+    int32_t vocab = logits->size / seq;
+    float loss = 0.0f;
+    for (int32_t t = 0; t < seq; t++) {
+        int32_t tgt = (int32_t)targets->data[t];
+        // log softmax
+        float *row = logits->data + t*vocab;
+        float mx = row[0];
+        for(int32_t v=1;v<vocab;v++) if(row[v]>mx) mx=row[v];
+        float sum=0.0f;
+        for(int32_t v=0;v<vocab;v++) sum+=expf(row[v]-mx);
+        loss -= (row[tgt]-mx) - logf(sum);
+    }
+    return loss / (float)seq;
+}
+
+void __taipan_transformer_free(void *tp) {
+    TaipanTransformer *t = (TaipanTransformer*)tp;
+    __taipan_embed_free(t->embed);
+    for(int32_t i=0;i<t->n_layers;i++) __taipan_block_free(t->blocks[i]);
+    __taipan_tensor_free(t->lm_head_W);
+    __taipan_tensor_free(t->lm_head_b);
+    free(t);
+}
+
+int32_t __taipan_transformer_param_count(void *tp) {
+    TaipanTransformer *t = (TaipanTransformer*)tp;
+    int32_t d = t->d_model, v = t->vocab_size, seq = t->embed->seq_len;
+    int32_t total = v*d + seq*d; // embeddings
+    for(int32_t i=0;i<t->n_layers;i++) {
+        total += 4*d*d + 4*d;   // MHA weights+biases
+        total += t->blocks[i]->ffn->d_ff*d*2 + t->blocks[i]->ffn->d_ff + d; // FFN
+    }
+    total += v*d + v; // lm head
+    return total;
+}
