@@ -816,6 +816,13 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
                     {"net_close",           "@__taipan_net_close",           "i32"},
                     {"net_peer_addr",       "@__taipan_net_peer_addr",       "i8*"},
                     {"net_set_nonblocking", "@__taipan_net_set_nonblocking", "i32"},
+                    // std.crypto
+                    {"sha256",              "@__taipan_sha256",              "i8*"},
+                    {"md5",                 "@__taipan_md5",                 "i8*"},
+                    {"crypto_random_bytes", "@__taipan_crypto_random_bytes", "i8*"},
+                    {"crypto_token",        "@__taipan_crypto_token",        "i8*"},
+                    {"base64_encode",       "@__taipan_base64_encode",       "i8*"},
+                    {"hash",                "@__taipan_hash",                "i32"},
                     // str_len alias
                     {"str_len", "@__taipan_str_len", "i32"},
                     {NULL, NULL, NULL}
@@ -1545,6 +1552,13 @@ void codegen_run(Codegen *cg, ASTNode *program) {
     fputs("declare i32 @__taipan_net_close(i32)\n", cg->out);
     fputs("declare i8* @__taipan_net_peer_addr(i32)\n", cg->out);
     fputs("declare i32 @__taipan_net_set_nonblocking(i32)\n", cg->out);
+    // std.crypto
+    fputs("declare i8* @__taipan_sha256(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_md5(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_crypto_random_bytes(i32)\n", cg->out);
+    fputs("declare i8* @__taipan_crypto_token(i32)\n", cg->out);
+    fputs("declare i8* @__taipan_base64_encode(i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_hash(i8*)\n", cg->out);
     for (int i = 0; i < cg->str_count; i++) {
         const char *s = cg->str_literals[i];
         // Convert \n \t etc to LLVM hex escapes and count bytes

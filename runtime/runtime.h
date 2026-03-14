@@ -144,3 +144,11 @@ char    *__taipan_net_recv            (int32_t fd, int32_t buf_size);
 int32_t  __taipan_net_close           (int32_t fd);
 char    *__taipan_net_peer_addr       (int32_t fd);
 int32_t  __taipan_net_set_nonblocking (int32_t fd);
+
+// std.crypto
+char   *__taipan_sha256              (const char *input);
+char   *__taipan_md5                 (const char *input);
+char   *__taipan_crypto_random_bytes (int32_t n);
+char   *__taipan_crypto_token        (int32_t bytes);
+char   *__taipan_base64_encode       (const char *input);
+int32_t __taipan_hash                (const char *s);

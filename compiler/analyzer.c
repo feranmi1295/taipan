@@ -752,6 +752,13 @@ void analyzer_init(Analyzer *a) {
     { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); scope_define_fn(a,"net_close",p,1,type_new(TY_I32)); }
     { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); scope_define_fn(a,"net_peer_addr",p,1,type_new(TY_STR)); }
     { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); scope_define_fn(a,"net_set_nonblocking",p,1,type_new(TY_I32)); }
+    // std.crypto
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"sha256",p,1,type_new(TY_STR)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"md5",p,1,type_new(TY_STR)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); scope_define_fn(a,"crypto_random_bytes",p,1,type_new(TY_STR)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); scope_define_fn(a,"crypto_token",p,1,type_new(TY_STR)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"base64_encode",p,1,type_new(TY_STR)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"hash",p,1,type_new(TY_I32)); }
 }
 
 void analyzer_run(Analyzer *a, ASTNode *program) {

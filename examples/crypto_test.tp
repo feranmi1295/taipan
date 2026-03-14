@@ -1,0 +1,38 @@
+use std.io
+use std.crypto
+
+fn main() {
+    // SHA256
+    let h1: str = sha256("hello")
+    println("sha256('hello'):")
+    println(h1)
+
+    let h2: str = sha256("Taipan")
+    println("sha256('Taipan'):")
+    println(h2)
+
+    // MD5
+    let m1: str = md5("hello")
+    println("md5('hello'):")
+    println(m1)
+
+    // Hash
+    let h: i32 = hash("Taipan Language")
+    println("hash('Taipan Language'):")
+    println(h)
+
+    // Base64
+    let b: str = base64_encode("Hello Taipan!")
+    println("base64('Hello Taipan!'):")
+    println(b)
+
+    // Crypto token
+    let tok: str = crypto_token(16)
+    println("random token (32 hex chars):")
+    println(tok)
+
+    // Verify sha256 known value
+    let known: str = sha256("abc")
+    println("sha256('abc') known hash:")
+    println(known)
+}
