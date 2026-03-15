@@ -305,3 +305,33 @@ void   *__taipan_ag_tmul      (void *a, void *b);
 int32_t __taipan_ag_tsum      (void *ids);
 void   *__taipan_ag_tvals     (void *ids);
 void   *__taipan_ag_tgrads    (void *ids);
+
+// std.nn extras
+void   *__taipan_nn_dropout          (void *x, float rate, int32_t training);
+void   *__taipan_nn_batchnorm_new    (int32_t features);
+void   *__taipan_nn_batchnorm_forward(void *bn, void *x, int32_t training);
+void    __taipan_nn_batchnorm_free   (void *bn);
+void   *__taipan_nn_conv2d_new       (int32_t in_ch, int32_t out_ch, int32_t kernel, int32_t stride, int32_t padding);
+void   *__taipan_nn_conv2d_forward   (void *c, void *x);
+void    __taipan_nn_conv2d_free      (void *c);
+void   *__taipan_nn_embed_new        (int32_t vocab, int32_t d_model);
+void   *__taipan_nn_embed_forward    (void *e, void *ids);
+void    __taipan_nn_embed_free       (void *e);
+// std.optim extras
+void   *__taipan_nn_rmsprop_new      (void *layer);
+void    __taipan_nn_rmsprop_step     (void *layer, void *rms, float lr);
+void    __taipan_nn_rmsprop_free     (void *rms);
+float   __taipan_optim_step_decay    (float lr, int32_t epoch, int32_t step_size, float gamma);
+float   __taipan_optim_cosine_decay  (float lr, int32_t epoch, int32_t max_epochs);
+float   __taipan_optim_warmup        (float lr, int32_t epoch, int32_t warmup_epochs);
+// std.linalg
+void   *__taipan_linalg_inv          (void *A);
+float   __taipan_linalg_det          (void *A);
+float   __taipan_linalg_norm         (void *A);
+void   *__taipan_linalg_outer        (void *a, void *b);
+float   __taipan_linalg_trace        (void *A);
+float   __taipan_linalg_cosine       (void *a, void *b);
+void   *__taipan_linalg_solve        (void *A, void *b);
+// image io
+void   *__taipan_data_load_ppm       (const char *path);
+int32_t __taipan_data_save_ppm       (void *t, const char *path, int32_t W, int32_t H);

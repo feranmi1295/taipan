@@ -3035,3 +3035,411 @@ void *__taipan_ag_tgrads(void *ids_p) {
         out->data[i] = __taipan_ag_grad((int32_t)ids->data[i]);
     return (void*)out;
 }
+
+// ─────────────────────────────────────────────
+//  std.nn extras — Conv2D, Dropout, BatchNorm
+//  std.optim — RMSProp, LR Scheduler
+//  std.linalg — SVD, inverse, determinant
+// ─────────────────────────────────────────────
+
+// ── Dropout ───────────────────────────────────
+void *__taipan_nn_dropout(void *xp, float rate, int32_t training) {
+    TaipanTensor *x = (TaipanTensor*)xp;
+    if (!x) return NULL;
+    TaipanTensor *out = __taipan_tensor_copy(x);
+    if (!training || rate <= 0.0f) return (void*)out;
+    float scale = 1.0f / (1.0f - rate);
+    for (int32_t i = 0; i < out->size; i++) {
+        float r = (float)rand() / (float)RAND_MAX;
+        out->data[i] = (r > rate) ? out->data[i] * scale : 0.0f;
+    }
+    return (void*)out;
+}
+
+// ── BatchNorm ─────────────────────────────────
+typedef struct {
+    TaipanTensor *gamma;   // scale  [features]
+    TaipanTensor *beta;    // shift  [features]
+    TaipanTensor *running_mean;
+    TaipanTensor *running_var;
+    float         momentum;
+    float         eps;
+    int32_t       features;
+} TaipanBatchNorm;
+
+void *__taipan_nn_batchnorm_new(int32_t features) {
+    TaipanBatchNorm *bn = malloc(sizeof(TaipanBatchNorm));
+    bn->features      = features;
+    bn->momentum      = 0.1f;
+    bn->eps           = 1e-5f;
+    bn->gamma         = __taipan_tensor_1d(features);
+    bn->beta          = __taipan_tensor_1d(features);
+    bn->running_mean  = __taipan_tensor_1d(features);
+    bn->running_var   = __taipan_tensor_1d(features);
+    __taipan_tensor_ones(bn->gamma);
+    __taipan_tensor_zeros(bn->beta);
+    __taipan_tensor_zeros(bn->running_mean);
+    __taipan_tensor_ones(bn->running_var);
+    return (void*)bn;
+}
+
+// Forward: x[batch x features] -> normalized
+void *__taipan_nn_batchnorm_forward(void *bnp, void *xp, int32_t training) {
+    TaipanBatchNorm *bn = (TaipanBatchNorm*)bnp;
+    TaipanTensor    *x  = (TaipanTensor*)xp;
+    int32_t batch = (x->ndim == 2) ? x->shape[0] : 1;
+    int32_t feat  = (x->ndim == 2) ? x->shape[1] : x->size;
+    int32_t s2[2] = {batch, feat};
+    TaipanTensor *out = __taipan_tensor_new(s2, 2);
+    for (int32_t f = 0; f < feat; f++) {
+        float mean = 0.0f, var = 0.0f;
+        if (training) {
+            for (int32_t i = 0; i < batch; i++) mean += x->data[i*feat+f];
+            mean /= (float)batch;
+            for (int32_t i = 0; i < batch; i++) { float d=x->data[i*feat+f]-mean; var+=d*d; }
+            var /= (float)batch;
+            // Update running stats
+            bn->running_mean->data[f] = (1-bn->momentum)*bn->running_mean->data[f] + bn->momentum*mean;
+            bn->running_var->data[f]  = (1-bn->momentum)*bn->running_var->data[f]  + bn->momentum*var;
+        } else {
+            mean = bn->running_mean->data[f];
+            var  = bn->running_var->data[f];
+        }
+        float std_inv = 1.0f / sqrtf(var + bn->eps);
+        for (int32_t i = 0; i < batch; i++)
+            out->data[i*feat+f] = bn->gamma->data[f] * (x->data[i*feat+f]-mean)*std_inv + bn->beta->data[f];
+    }
+    return (void*)out;
+}
+
+void __taipan_nn_batchnorm_free(void *bnp) {
+    TaipanBatchNorm *bn = (TaipanBatchNorm*)bnp;
+    __taipan_tensor_free(bn->gamma);
+    __taipan_tensor_free(bn->beta);
+    __taipan_tensor_free(bn->running_mean);
+    __taipan_tensor_free(bn->running_var);
+    free(bn);
+}
+
+// ── Conv2D ────────────────────────────────────
+typedef struct {
+    TaipanTensor *W;   // [out_ch x in_ch x kH x kW]
+    TaipanTensor *b;   // [out_ch]
+    int32_t out_ch, in_ch, kH, kW, stride, padding;
+} TaipanConv2D;
+
+void *__taipan_nn_conv2d_new(int32_t in_ch, int32_t out_ch, int32_t kernel, int32_t stride, int32_t padding) {
+    TaipanConv2D *c = malloc(sizeof(TaipanConv2D));
+    c->out_ch = out_ch; c->in_ch = in_ch;
+    c->kH = kernel; c->kW = kernel;
+    c->stride = stride; c->padding = padding;
+    int32_t w_size = out_ch * in_ch * kernel * kernel;
+    int32_t ws[1] = {w_size};
+    c->W = __taipan_tensor_new(ws, 1);
+    c->b = __taipan_tensor_1d(out_ch);
+    float limit = sqrtf(2.0f / (float)(in_ch * kernel * kernel));
+    for (int32_t i = 0; i < w_size; i++)
+        c->W->data[i] = ((float)rand()/(float)RAND_MAX)*2.0f*limit - limit;
+    __taipan_tensor_zeros(c->b);
+    return (void*)c;
+}
+
+// Forward: input[in_ch x H x W] -> output[out_ch x H_out x W_out]
+void *__taipan_nn_conv2d_forward(void *cp, void *xp) {
+    TaipanConv2D *c = (TaipanConv2D*)cp;
+    TaipanTensor *x = (TaipanTensor*)xp;
+    // x assumed flat: in_ch * H * W
+    int32_t total  = x->size;
+    int32_t hw     = total / c->in_ch;
+    int32_t H      = (int32_t)sqrtf((float)hw);
+    int32_t W      = H;
+    int32_t H_out  = (H + 2*c->padding - c->kH) / c->stride + 1;
+    int32_t W_out  = (W + 2*c->padding - c->kW) / c->stride + 1;
+    int32_t out_sz = c->out_ch * H_out * W_out;
+    int32_t os[1]  = {out_sz};
+    TaipanTensor *out = __taipan_tensor_new(os, 1);
+    for (int32_t oc = 0; oc < c->out_ch; oc++)
+        for (int32_t oh = 0; oh < H_out; oh++)
+            for (int32_t ow = 0; ow < W_out; ow++) {
+                float sum = c->b->data[oc];
+                for (int32_t ic = 0; ic < c->in_ch; ic++)
+                    for (int32_t kh = 0; kh < c->kH; kh++)
+                        for (int32_t kw = 0; kw < c->kW; kw++) {
+                            int32_t ih = oh*c->stride - c->padding + kh;
+                            int32_t iw = ow*c->stride - c->padding + kw;
+                            if (ih>=0&&ih<H&&iw>=0&&iw<W)
+                                sum += x->data[ic*H*W+ih*W+iw] *
+                                       c->W->data[oc*c->in_ch*c->kH*c->kW + ic*c->kH*c->kW + kh*c->kW + kw];
+                        }
+                out->data[oc*H_out*W_out + oh*W_out + ow] = sum;
+            }
+    return (void*)out;
+}
+
+void __taipan_nn_conv2d_free(void *cp) {
+    TaipanConv2D *c = (TaipanConv2D*)cp;
+    __taipan_tensor_free(c->W);
+    __taipan_tensor_free(c->b);
+    free(c);
+}
+
+// ── Trainable Embedding ───────────────────────
+typedef struct {
+    TaipanTensor *W;   // [vocab x d_model]
+    TaipanTensor *dW;  // gradients
+    int32_t vocab, d_model;
+} TaipanNNEmbed;
+
+void *__taipan_nn_embed_new(int32_t vocab, int32_t d_model) {
+    TaipanNNEmbed *e = malloc(sizeof(TaipanNNEmbed));
+    e->vocab = vocab; e->d_model = d_model;
+    e->W  = __taipan_tensor_2d(vocab, d_model);
+    e->dW = __taipan_tensor_2d(vocab, d_model);
+    float limit = sqrtf(1.0f/(float)d_model);
+    for(int32_t i=0;i<e->W->size;i++)
+        e->W->data[i]=((float)rand()/(float)RAND_MAX)*2.0f*limit-limit;
+    __taipan_tensor_zeros(e->dW);
+    return (void*)e;
+}
+
+void *__taipan_nn_embed_forward(void *ep, void *ids_p) {
+    TaipanNNEmbed *e  = (TaipanNNEmbed*)ep;
+    TaipanTensor  *ids = (TaipanTensor*)ids_p;
+    int32_t seq = ids->size;
+    int32_t s2[2] = {seq, e->d_model};
+    TaipanTensor *out = __taipan_tensor_new(s2, 2);
+    for(int32_t i=0;i<seq;i++){
+        int32_t tid=(int32_t)ids->data[i];
+        if(tid<0||tid>=e->vocab) tid=0;
+        memcpy(out->data+i*e->d_model, e->W->data+tid*e->d_model, sizeof(float)*(size_t)e->d_model);
+    }
+    return (void*)out;
+}
+
+void __taipan_nn_embed_free(void *ep) {
+    TaipanNNEmbed *e=(TaipanNNEmbed*)ep;
+    __taipan_tensor_free(e->W);
+    __taipan_tensor_free(e->dW);
+    free(e);
+}
+
+// ── RMSProp optimizer ─────────────────────────
+typedef struct {
+    TaipanTensor *vW, *vb;
+    float alpha, eps;
+} TaipanRMSProp;
+
+void *__taipan_nn_rmsprop_new(void *lp) {
+    TaipanLinear *l = (TaipanLinear*)lp;
+    TaipanRMSProp *r = calloc(1, sizeof(TaipanRMSProp));
+    r->vW    = __taipan_tensor_2d(l->out_features, l->in_features);
+    r->vb    = __taipan_tensor_1d(l->out_features);
+    r->alpha = 0.99f;
+    r->eps   = 1e-8f;
+    return (void*)r;
+}
+
+void __taipan_nn_rmsprop_step(void *lp, void *rp, float lr) {
+    TaipanLinear  *l = (TaipanLinear*)lp;
+    TaipanRMSProp *r = (TaipanRMSProp*)rp;
+    for(int32_t i=0;i<l->W->size;i++){
+        float g=l->dW->data[i];
+        r->vW->data[i]=r->alpha*r->vW->data[i]+(1-r->alpha)*g*g;
+        l->W->data[i]-=lr*g/(sqrtf(r->vW->data[i])+r->eps);
+    }
+    for(int32_t i=0;i<l->b->size;i++){
+        float g=l->db->data[i];
+        r->vb->data[i]=r->alpha*r->vb->data[i]+(1-r->alpha)*g*g;
+        l->b->data[i]-=lr*g/(sqrtf(r->vb->data[i])+r->eps);
+    }
+}
+
+void __taipan_nn_rmsprop_free(void *rp) {
+    TaipanRMSProp *r=(TaipanRMSProp*)rp;
+    __taipan_tensor_free(r->vW);
+    __taipan_tensor_free(r->vb);
+    free(r);
+}
+
+// ── LR Scheduler ─────────────────────────────
+float __taipan_optim_step_decay(float lr, int32_t epoch, int32_t step_size, float gamma) {
+    return lr * powf(gamma, (float)(epoch / step_size));
+}
+float __taipan_optim_cosine_decay(float lr, int32_t epoch, int32_t max_epochs) {
+    return lr * 0.5f * (1.0f + cosf(3.14159265f * (float)epoch / (float)max_epochs));
+}
+float __taipan_optim_warmup(float lr, int32_t epoch, int32_t warmup_epochs) {
+    if (epoch >= warmup_epochs) return lr;
+    return lr * (float)epoch / (float)warmup_epochs;
+}
+
+// ── std.linalg ────────────────────────────────
+// Matrix inverse (Gauss-Jordan)
+void *__taipan_linalg_inv(void *ap) {
+    TaipanTensor *A = (TaipanTensor*)ap;
+    if (!A || A->ndim != 2 || A->shape[0] != A->shape[1]) return NULL;
+    int32_t n = A->shape[0];
+    // Augmented matrix [A | I]
+    float *aug = malloc(sizeof(float) * (size_t)(n * 2 * n));
+    for(int32_t i=0;i<n;i++){
+        for(int32_t j=0;j<n;j++) aug[i*2*n+j]=A->data[i*n+j];
+        for(int32_t j=0;j<n;j++) aug[i*2*n+n+j]=(i==j)?1.0f:0.0f;
+    }
+    for(int32_t col=0;col<n;col++){
+        // Pivot
+        int32_t pivot=col;
+        for(int32_t row=col+1;row<n;row++)
+            if(fabsf(aug[row*2*n+col])>fabsf(aug[pivot*2*n+col])) pivot=row;
+        if(pivot!=col)
+            for(int32_t j=0;j<2*n;j++){float tmp=aug[col*2*n+j];aug[col*2*n+j]=aug[pivot*2*n+j];aug[pivot*2*n+j]=tmp;}
+        float diag=aug[col*2*n+col];
+        if(fabsf(diag)<1e-10f){free(aug);return NULL;}
+        for(int32_t j=0;j<2*n;j++) aug[col*2*n+j]/=diag;
+        for(int32_t row=0;row<n;row++){
+            if(row==col) continue;
+            float f=aug[row*2*n+col];
+            for(int32_t j=0;j<2*n;j++) aug[row*2*n+j]-=f*aug[col*2*n+j];
+        }
+    }
+    int32_t s2[2]={n,n};
+    TaipanTensor *inv=__taipan_tensor_new(s2,2);
+    for(int32_t i=0;i<n;i++)
+        for(int32_t j=0;j<n;j++) inv->data[i*n+j]=aug[i*2*n+n+j];
+    free(aug);
+    return (void*)inv;
+}
+
+// Determinant (LU decomposition)
+float __taipan_linalg_det(void *ap) {
+    TaipanTensor *A=(TaipanTensor*)ap;
+    if(!A||A->ndim!=2||A->shape[0]!=A->shape[1]) return 0.0f;
+    int32_t n=A->shape[0];
+    float *lu=malloc(sizeof(float)*(size_t)(n*n));
+    memcpy(lu,A->data,sizeof(float)*(size_t)(n*n));
+    float det=1.0f;
+    for(int32_t i=0;i<n;i++){
+        int32_t pivot=i;
+        for(int32_t k=i+1;k<n;k++) if(fabsf(lu[k*n+i])>fabsf(lu[pivot*n+i])) pivot=k;
+        if(pivot!=i){
+            for(int32_t j=0;j<n;j++){float t=lu[i*n+j];lu[i*n+j]=lu[pivot*n+j];lu[pivot*n+j]=t;}
+            det=-det;
+        }
+        if(fabsf(lu[i*n+i])<1e-10f){free(lu);return 0.0f;}
+        det*=lu[i*n+i];
+        for(int32_t k=i+1;k<n;k++){
+            float f=lu[k*n+i]/lu[i*n+i];
+            for(int32_t j=i;j<n;j++) lu[k*n+j]-=f*lu[i*n+j];
+        }
+    }
+    free(lu);
+    return det;
+}
+
+// Matrix norm (Frobenius)
+float __taipan_linalg_norm(void *ap) {
+    TaipanTensor *A=(TaipanTensor*)ap;
+    if(!A) return 0.0f;
+    float s=0.0f;
+    for(int32_t i=0;i<A->size;i++) s+=A->data[i]*A->data[i];
+    return sqrtf(s);
+}
+
+// Outer product: a[m] x b[n] -> C[m x n]
+void *__taipan_linalg_outer(void *ap, void *bp) {
+    TaipanTensor *a=(TaipanTensor*)ap, *b=(TaipanTensor*)bp;
+    if(!a||!b) return NULL;
+    int32_t s2[2]={a->size,b->size};
+    TaipanTensor *C=__taipan_tensor_new(s2,2);
+    for(int32_t i=0;i<a->size;i++)
+        for(int32_t j=0;j<b->size;j++)
+            C->data[i*b->size+j]=a->data[i]*b->data[j];
+    return (void*)C;
+}
+
+// Trace of matrix
+float __taipan_linalg_trace(void *ap) {
+    TaipanTensor *A=(TaipanTensor*)ap;
+    if(!A||A->ndim!=2) return 0.0f;
+    int32_t n=A->shape[0]<A->shape[1]?A->shape[0]:A->shape[1];
+    float s=0.0f;
+    for(int32_t i=0;i<n;i++) s+=A->data[i*A->shape[1]+i];
+    return s;
+}
+
+// Cosine similarity
+float __taipan_linalg_cosine(void *ap, void *bp) {
+    TaipanTensor *a=(TaipanTensor*)ap, *b=(TaipanTensor*)bp;
+    if(!a||!b||a->size!=b->size) return 0.0f;
+    float dot=0.0f, na=0.0f, nb=0.0f;
+    for(int32_t i=0;i<a->size;i++){
+        dot+=a->data[i]*b->data[i];
+        na+=a->data[i]*a->data[i];
+        nb+=b->data[i]*b->data[i];
+    }
+    return dot/(sqrtf(na)*sqrtf(nb)+1e-10f);
+}
+
+// Linear solve Ax = b via Gaussian elimination
+void *__taipan_linalg_solve(void *Ap, void *bp) {
+    TaipanTensor *A=(TaipanTensor*)Ap, *b=(TaipanTensor*)bp;
+    if(!A||!b||A->ndim!=2||A->shape[0]!=A->shape[1]) return NULL;
+    int32_t n=A->shape[0];
+    float *aug=malloc(sizeof(float)*(size_t)(n*(n+1)));
+    for(int32_t i=0;i<n;i++){
+        for(int32_t j=0;j<n;j++) aug[i*(n+1)+j]=A->data[i*n+j];
+        aug[i*(n+1)+n]=b->data[i];
+    }
+    for(int32_t col=0;col<n;col++){
+        int32_t pivot=col;
+        for(int32_t row=col+1;row<n;row++)
+            if(fabsf(aug[row*(n+1)+col])>fabsf(aug[pivot*(n+1)+col])) pivot=row;
+        if(pivot!=col)
+            for(int32_t j=0;j<=n;j++){float t=aug[col*(n+1)+j];aug[col*(n+1)+j]=aug[pivot*(n+1)+j];aug[pivot*(n+1)+j]=t;}
+        float d=aug[col*(n+1)+col];
+        if(fabsf(d)<1e-10f){free(aug);return NULL;}
+        for(int32_t j=0;j<=n;j++) aug[col*(n+1)+j]/=d;
+        for(int32_t row=0;row<n;row++){
+            if(row==col) continue;
+            float f=aug[row*(n+1)+col];
+            for(int32_t j=0;j<=n;j++) aug[row*(n+1)+j]-=f*aug[col*(n+1)+j];
+        }
+    }
+    TaipanTensor *x=__taipan_tensor_1d(n);
+    for(int32_t i=0;i<n;i++) x->data[i]=aug[i*(n+1)+n];
+    free(aug);
+    return (void*)x;
+}
+
+// ── load_images (PPM format) ──────────────────
+// Loads a PPM image as a flat float tensor [H*W*3] normalized to [0,1]
+void *__taipan_data_load_ppm(const char *path) {
+    FILE *f=fopen(path,"rb");
+    if(!f) return NULL;
+    char magic[3]; int W,H,maxval;
+    fscanf(f,"%2s %d %d %d ",magic,&W,&H,&maxval);
+    if(magic[0]!='P'||magic[1]!='6'){fclose(f);return NULL;}
+    int32_t size=H*W*3;
+    int32_t s[1]={size};
+    TaipanTensor *t=__taipan_tensor_new(s,1);
+    uint8_t *buf=malloc((size_t)(W*H*3));
+    fread(buf,1,(size_t)(W*H*3),f);
+    for(int32_t i=0;i<size;i++) t->data[i]=(float)buf[i]/(float)maxval;
+    free(buf); fclose(f);
+    return (void*)t;
+}
+
+// Save tensor as PPM image
+int32_t __taipan_data_save_ppm(void *tp, const char *path, int32_t W, int32_t H) {
+    TaipanTensor *t=(TaipanTensor*)tp;
+    if(!t) return -1;
+    FILE *f=fopen(path,"wb");
+    if(!f) return -1;
+    fprintf(f,"P6\n%d %d\n255\n",W,H);
+    for(int32_t i=0;i<W*H*3;i++){
+        float v=t->data[i]; if(v<0)v=0; if(v>1)v=1;
+        uint8_t b=(uint8_t)(v*255.0f);
+        fwrite(&b,1,1,f);
+    }
+    fclose(f);
+    return 0;
+}

@@ -1012,6 +1012,35 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
                     {"ag_tsum",      "@__taipan_ag_tsum",       "i32"},
                     {"ag_tvals",     "@__taipan_ag_tvals",      "i8*"},
                     {"ag_tgrads",    "@__taipan_ag_tgrads",     "i8*"},
+                    // std.nn extras
+                    {"nn_dropout",          "@__taipan_nn_dropout",          "i8*"},
+                    {"nn_batchnorm_new",    "@__taipan_nn_batchnorm_new",    "i8*"},
+                    {"nn_batchnorm_forward","@__taipan_nn_batchnorm_forward","i8*"},
+                    {"nn_batchnorm_free",   "@__taipan_nn_batchnorm_free",   "void"},
+                    {"nn_conv2d_new",       "@__taipan_nn_conv2d_new",       "i8*"},
+                    {"nn_conv2d_forward",   "@__taipan_nn_conv2d_forward",   "i8*"},
+                    {"nn_conv2d_free",      "@__taipan_nn_conv2d_free",      "void"},
+                    {"nn_embed_new",        "@__taipan_nn_embed_new",        "i8*"},
+                    {"nn_embed_forward",    "@__taipan_nn_embed_forward",    "i8*"},
+                    {"nn_embed_free",       "@__taipan_nn_embed_free",       "void"},
+                    // std.optim extras
+                    {"nn_rmsprop_new",      "@__taipan_nn_rmsprop_new",      "i8*"},
+                    {"nn_rmsprop_step",     "@__taipan_nn_rmsprop_step",     "void"},
+                    {"nn_rmsprop_free",     "@__taipan_nn_rmsprop_free",     "void"},
+                    {"optim_step_decay",    "@__taipan_optim_step_decay",    "float"},
+                    {"optim_cosine_decay",  "@__taipan_optim_cosine_decay",  "float"},
+                    {"optim_warmup",        "@__taipan_optim_warmup",        "float"},
+                    // std.linalg
+                    {"linalg_inv",          "@__taipan_linalg_inv",          "i8*"},
+                    {"linalg_det",          "@__taipan_linalg_det",          "float"},
+                    {"linalg_norm",         "@__taipan_linalg_norm",         "float"},
+                    {"linalg_outer",        "@__taipan_linalg_outer",        "i8*"},
+                    {"linalg_trace",        "@__taipan_linalg_trace",        "float"},
+                    {"linalg_cosine",       "@__taipan_linalg_cosine",       "float"},
+                    {"linalg_solve",        "@__taipan_linalg_solve",        "i8*"},
+                    // image io
+                    {"data_load_ppm",       "@__taipan_data_load_ppm",       "i8*"},
+                    {"data_save_ppm",       "@__taipan_data_save_ppm",       "i32"},
                     // str_len alias
                     {"str_len", "@__taipan_str_len", "i32"},
                     {NULL, NULL, NULL}
@@ -1946,6 +1975,35 @@ void codegen_run(Codegen *cg, ASTNode *program) {
     fputs("declare i32 @__taipan_ag_tsum(i8*)\n", cg->out);
     fputs("declare i8* @__taipan_ag_tvals(i8*)\n", cg->out);
     fputs("declare i8* @__taipan_ag_tgrads(i8*)\n", cg->out);
+    // std.nn extras
+    fputs("declare i8* @__taipan_nn_dropout(i8*, float, i32)\n", cg->out);
+    fputs("declare i8* @__taipan_nn_batchnorm_new(i32)\n", cg->out);
+    fputs("declare i8* @__taipan_nn_batchnorm_forward(i8*, i8*, i32)\n", cg->out);
+    fputs("declare void @__taipan_nn_batchnorm_free(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_nn_conv2d_new(i32, i32, i32, i32, i32)\n", cg->out);
+    fputs("declare i8* @__taipan_nn_conv2d_forward(i8*, i8*)\n", cg->out);
+    fputs("declare void @__taipan_nn_conv2d_free(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_nn_embed_new(i32, i32)\n", cg->out);
+    fputs("declare i8* @__taipan_nn_embed_forward(i8*, i8*)\n", cg->out);
+    fputs("declare void @__taipan_nn_embed_free(i8*)\n", cg->out);
+    // std.optim extras
+    fputs("declare i8* @__taipan_nn_rmsprop_new(i8*)\n", cg->out);
+    fputs("declare void @__taipan_nn_rmsprop_step(i8*, i8*, float)\n", cg->out);
+    fputs("declare void @__taipan_nn_rmsprop_free(i8*)\n", cg->out);
+    fputs("declare float @__taipan_optim_step_decay(float, i32, i32, float)\n", cg->out);
+    fputs("declare float @__taipan_optim_cosine_decay(float, i32, i32)\n", cg->out);
+    fputs("declare float @__taipan_optim_warmup(float, i32, i32)\n", cg->out);
+    // std.linalg
+    fputs("declare i8* @__taipan_linalg_inv(i8*)\n", cg->out);
+    fputs("declare float @__taipan_linalg_det(i8*)\n", cg->out);
+    fputs("declare float @__taipan_linalg_norm(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_linalg_outer(i8*, i8*)\n", cg->out);
+    fputs("declare float @__taipan_linalg_trace(i8*)\n", cg->out);
+    fputs("declare float @__taipan_linalg_cosine(i8*, i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_linalg_solve(i8*, i8*)\n", cg->out);
+    // image io
+    fputs("declare i8* @__taipan_data_load_ppm(i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_data_save_ppm(i8*, i8*, i32, i32)\n", cg->out);
     for (int i = 0; i < cg->str_count; i++) {
         const char *s = cg->str_literals[i];
         // Convert \n \t etc to LLVM hex escapes and count bytes

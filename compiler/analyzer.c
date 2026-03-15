@@ -948,6 +948,35 @@ void analyzer_init(Analyzer *a) {
     { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"ag_tsum",p,1,type_new(TY_I32)); }
     { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"ag_tvals",p,1,type_new(TY_ANY)); }
     { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"ag_tgrads",p,1,type_new(TY_ANY)); }
+    // std.nn extras
+    { TypeInfo **p=calloc(3,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_F32); p[2]=type_new(TY_I32); scope_define_fn(a,"nn_dropout",p,3,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); scope_define_fn(a,"nn_batchnorm_new",p,1,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(3,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); p[2]=type_new(TY_I32); scope_define_fn(a,"nn_batchnorm_forward",p,3,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"nn_batchnorm_free",p,1,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(5,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); p[1]=type_new(TY_I32); p[2]=type_new(TY_I32); p[3]=type_new(TY_I32); p[4]=type_new(TY_I32); scope_define_fn(a,"nn_conv2d_new",p,5,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); scope_define_fn(a,"nn_conv2d_forward",p,2,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"nn_conv2d_free",p,1,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_I32); p[1]=type_new(TY_I32); scope_define_fn(a,"nn_embed_new",p,2,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); scope_define_fn(a,"nn_embed_forward",p,2,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"nn_embed_free",p,1,type_new(TY_VOID)); }
+    // std.optim extras
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"nn_rmsprop_new",p,1,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(3,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); p[2]=type_new(TY_F32); scope_define_fn(a,"nn_rmsprop_step",p,3,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"nn_rmsprop_free",p,1,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(4,sizeof(TypeInfo*)); p[0]=type_new(TY_F32); p[1]=type_new(TY_I32); p[2]=type_new(TY_I32); p[3]=type_new(TY_F32); scope_define_fn(a,"optim_step_decay",p,4,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(3,sizeof(TypeInfo*)); p[0]=type_new(TY_F32); p[1]=type_new(TY_I32); p[2]=type_new(TY_I32); scope_define_fn(a,"optim_cosine_decay",p,3,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(3,sizeof(TypeInfo*)); p[0]=type_new(TY_F32); p[1]=type_new(TY_I32); p[2]=type_new(TY_I32); scope_define_fn(a,"optim_warmup",p,3,type_new(TY_F32)); }
+    // std.linalg
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"linalg_inv",p,1,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"linalg_det",p,1,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"linalg_norm",p,1,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); scope_define_fn(a,"linalg_outer",p,2,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"linalg_trace",p,1,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); scope_define_fn(a,"linalg_cosine",p,2,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_ANY); scope_define_fn(a,"linalg_solve",p,2,type_new(TY_ANY)); }
+    // image io
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"data_load_ppm",p,1,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(4,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_STR); p[2]=type_new(TY_I32); p[3]=type_new(TY_I32); scope_define_fn(a,"data_save_ppm",p,4,type_new(TY_I32)); }
 }
 
 void analyzer_run(Analyzer *a, ASTNode *program) {

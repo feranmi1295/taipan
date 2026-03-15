@@ -1,0 +1,109 @@
+use std.io
+use std.tensor
+use std.nn
+use std.math
+use std.string
+
+fn main() {
+    // ── Dropout ──────────────────────────────
+    println("=== Dropout ===")
+    let t = tensor_1d(8)
+    tensor_fill(t, 1.0)
+    let d = nn_dropout(t, 0.5, 1)
+    tensor_print(d)
+
+    // ── BatchNorm ─────────────────────────────
+    println("=== BatchNorm ===")
+    let bn = nn_batchnorm_new(4)
+    let x = tensor_2d(3, 4)
+    tensor_randn(x, 0.0, 1.0)
+    let bn_out = nn_batchnorm_forward(bn, x, 1)
+    tensor_print(bn_out)
+    println("mean (should be ~0):")
+    println(tensor_mean(bn_out))
+
+    // ── Conv2D ────────────────────────────────
+    println("=== Conv2D ===")
+    let conv = nn_conv2d_new(1, 4, 3, 1, 0)
+    let img = tensor_1d(25)
+    tensor_randn(img, 0.0, 1.0)
+    let conv_out = nn_conv2d_forward(conv, img)
+    tensor_print(conv_out)
+
+    // ── Trainable Embedding ───────────────────
+    println("=== Trainable Embedding ===")
+    let emb = nn_embed_new(10, 8)
+    let ids = tensor_1d(3)
+    tensor_set(ids, 0, 2.0)
+    tensor_set(ids, 1, 5.0)
+    tensor_set(ids, 2, 7.0)
+    let emb_out = nn_embed_forward(emb, ids)
+    tensor_print(emb_out)
+
+    // ── LR Schedulers ─────────────────────────
+    println("=== LR Schedulers ===")
+    let lr: f32 = 0.1
+    println("step decay epoch 10:")
+    println(optim_step_decay(lr, 10, 5, 0.5))
+    println("cosine decay epoch 50/100:")
+    println(optim_cosine_decay(lr, 50, 100))
+    println("warmup epoch 3/10:")
+    println(optim_warmup(lr, 3, 10))
+
+    // ── std.linalg ────────────────────────────
+    println("=== linalg ===")
+    let A = tensor_2d(2, 2)
+    tensor_set2d(A, 0, 0, 4.0)
+    tensor_set2d(A, 0, 1, 7.0)
+    tensor_set2d(A, 1, 0, 2.0)
+    tensor_set2d(A, 1, 1, 6.0)
+
+    println("det([[4,7],[2,6]]) = 10:")
+    println(linalg_det(A))
+
+    let inv = linalg_inv(A)
+    tensor_print(inv)
+
+    println("trace([[4,7],[2,6]]) = 10:")
+    println(linalg_trace(A))
+
+    println("norm:")
+    println(linalg_norm(A))
+
+    // verify A @ inv = I
+    let I = tensor_matmul(A, inv)
+    println("A @ inv(A) should be identity:")
+    tensor_print(I)
+
+    // cosine similarity
+    let v1 = tensor_1d(3)
+    tensor_set(v1, 0, 1.0)
+    tensor_set(v1, 1, 0.0)
+    tensor_set(v1, 2, 0.0)
+    let v2 = tensor_1d(3)
+    tensor_set(v2, 0, 1.0)
+    tensor_set(v2, 1, 0.0)
+    tensor_set(v2, 2, 0.0)
+    println("cosine([1,0,0],[1,0,0]) = 1.0:")
+    println(linalg_cosine(v1, v2))
+
+    // linear solve Ax = b
+    let b = tensor_1d(2)
+    tensor_set(b, 0, 1.0)
+    tensor_set(b, 1, 0.0)
+    let x_sol = linalg_solve(A, b)
+    println("solve A*x=[1,0]:")
+    tensor_print(x_sol)
+
+    // outer product
+    let a3 = tensor_1d(3)
+    tensor_set(a3, 0, 1.0)
+    tensor_set(a3, 1, 2.0)
+    tensor_set(a3, 2, 3.0)
+    let outer = linalg_outer(a3, a3)
+    println("outer([1,2,3],[1,2,3]):")
+    tensor_print(outer)
+
+    println("")
+    println("=== All extras tests passed ===")
+}
