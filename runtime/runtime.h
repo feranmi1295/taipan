@@ -335,3 +335,18 @@ void   *__taipan_linalg_solve        (void *A, void *b);
 // image io
 void   *__taipan_data_load_ppm       (const char *path);
 int32_t __taipan_data_save_ppm       (void *t, const char *path, int32_t W, int32_t H);
+
+// std.brain
+void   *__taipan_brain_new          (void);
+void    __taipan_brain_free         (void *b);
+void    __taipan_brain_learn        (void *b, const char *text);
+char   *__taipan_brain_think        (void *b, const char *query);
+void    __taipan_brain_forget       (void *b, float decay_rate);
+int32_t __taipan_brain_size         (void *b);
+int32_t __taipan_brain_interactions (void *b);
+int32_t __taipan_brain_edges        (void *b);
+char   *__taipan_brain_most_important(void *b);
+char   *__taipan_brain_search       (void *b, const char *keyword);
+int32_t __taipan_brain_save         (void *b, const char *path);
+void   *__taipan_brain_load         (const char *path);
+float   __taipan_brain_similarity   (void *b, const char *a, const char *b_text);

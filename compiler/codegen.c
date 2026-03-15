@@ -1041,6 +1041,20 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
                     // image io
                     {"data_load_ppm",       "@__taipan_data_load_ppm",       "i8*"},
                     {"data_save_ppm",       "@__taipan_data_save_ppm",       "i32"},
+                    // std.brain
+                    {"brain_new",           "@__taipan_brain_new",           "i8*"},
+                    {"brain_free",          "@__taipan_brain_free",          "void"},
+                    {"brain_learn",         "@__taipan_brain_learn",         "void"},
+                    {"brain_think",         "@__taipan_brain_think",         "i8*"},
+                    {"brain_forget",        "@__taipan_brain_forget",        "void"},
+                    {"brain_size",          "@__taipan_brain_size",          "i32"},
+                    {"brain_interactions",  "@__taipan_brain_interactions",  "i32"},
+                    {"brain_edges",         "@__taipan_brain_edges",         "i32"},
+                    {"brain_most_important","@__taipan_brain_most_important","i8*"},
+                    {"brain_search",        "@__taipan_brain_search",        "i8*"},
+                    {"brain_save",          "@__taipan_brain_save",          "i32"},
+                    {"brain_load",          "@__taipan_brain_load",          "i8*"},
+                    {"brain_similarity",    "@__taipan_brain_similarity",    "float"},
                     // str_len alias
                     {"str_len", "@__taipan_str_len", "i32"},
                     {NULL, NULL, NULL}
@@ -2004,6 +2018,20 @@ void codegen_run(Codegen *cg, ASTNode *program) {
     // image io
     fputs("declare i8* @__taipan_data_load_ppm(i8*)\n", cg->out);
     fputs("declare i32 @__taipan_data_save_ppm(i8*, i8*, i32, i32)\n", cg->out);
+    // std.brain
+    fputs("declare i8* @__taipan_brain_new()\n", cg->out);
+    fputs("declare void @__taipan_brain_free(i8*)\n", cg->out);
+    fputs("declare void @__taipan_brain_learn(i8*, i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_brain_think(i8*, i8*)\n", cg->out);
+    fputs("declare void @__taipan_brain_forget(i8*, float)\n", cg->out);
+    fputs("declare i32 @__taipan_brain_size(i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_brain_interactions(i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_brain_edges(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_brain_most_important(i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_brain_search(i8*, i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_brain_save(i8*, i8*)\n", cg->out);
+    fputs("declare i8* @__taipan_brain_load(i8*)\n", cg->out);
+    fputs("declare float @__taipan_brain_similarity(i8*, i8*, i8*)\n", cg->out);
     for (int i = 0; i < cg->str_count; i++) {
         const char *s = cg->str_literals[i];
         // Convert \n \t etc to LLVM hex escapes and count bytes

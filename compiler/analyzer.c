@@ -977,6 +977,20 @@ void analyzer_init(Analyzer *a) {
     // image io
     { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"data_load_ppm",p,1,type_new(TY_ANY)); }
     { TypeInfo **p=calloc(4,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_STR); p[2]=type_new(TY_I32); p[3]=type_new(TY_I32); scope_define_fn(a,"data_save_ppm",p,4,type_new(TY_I32)); }
+    // std.brain
+    { scope_define_fn(a,"brain_new",NULL,0,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"brain_free",p,1,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_STR); scope_define_fn(a,"brain_learn",p,2,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_STR); scope_define_fn(a,"brain_think",p,2,type_new(TY_STR)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_F32); scope_define_fn(a,"brain_forget",p,2,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"brain_size",p,1,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"brain_interactions",p,1,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"brain_edges",p,1,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"brain_most_important",p,1,type_new(TY_STR)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_STR); scope_define_fn(a,"brain_search",p,2,type_new(TY_STR)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_STR); scope_define_fn(a,"brain_save",p,2,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"brain_load",p,1,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(3,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_STR); p[2]=type_new(TY_STR); scope_define_fn(a,"brain_similarity",p,3,type_new(TY_F32)); }
 }
 
 void analyzer_run(Analyzer *a, ASTNode *program) {

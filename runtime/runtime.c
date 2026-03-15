@@ -3443,3 +3443,364 @@ int32_t __taipan_data_save_ppm(void *tp, const char *path, int32_t W, int32_t H)
     fclose(f);
     return 0;
 }
+
+// ─────────────────────────────────────────────
+//  std.brain — Persistent Neural Memory AI
+//  Architecture:
+//    input -> embed -> memory search ->
+//    transformer reasoning -> memory update
+//  Pure C, no external deps
+// ─────────────────────────────────────────────
+
+#define BRAIN_MAX_MEMORIES  4096
+#define BRAIN_EMBED_DIM     64
+#define BRAIN_MAX_STR       512
+#define BRAIN_LEARN_RATE    0.001f
+#define BRAIN_TOP_K         5
+
+// ── Memory entry ─────────────────────────────
+typedef struct {
+    char    text[BRAIN_MAX_STR];   // original text
+    float   embedding[BRAIN_EMBED_DIM]; // vector
+    float   importance;            // decays over time
+    int32_t access_count;          // how often retrieved
+    int64_t timestamp;
+} BrainMemory;
+
+// ── Knowledge graph edge ──────────────────────
+typedef struct {
+    int32_t from, to;
+    float   weight;
+} BrainEdge;
+
+#define BRAIN_MAX_EDGES 16384
+
+// ── Brain struct ──────────────────────────────
+typedef struct {
+    BrainMemory  memories[BRAIN_MAX_MEMORIES];
+    int32_t      n_memories;
+    BrainEdge    edges[BRAIN_MAX_EDGES];
+    int32_t      n_edges;
+    // Projection matrices for encoding
+    float        W_encode[BRAIN_EMBED_DIM][BRAIN_EMBED_DIM];
+    float        W_reason[BRAIN_EMBED_DIM][BRAIN_EMBED_DIM];
+    float        W_output[BRAIN_EMBED_DIM][BRAIN_EMBED_DIM];
+    // Continual learning rate
+    float        lr;
+    int32_t      total_interactions;
+} TaipanBrain;
+
+// ── Simple hash-based text encoder ───────────
+// Converts text to a dense float vector
+static void brain_encode_text(const char *text, float *out, int32_t dim) {
+    memset(out, 0, sizeof(float) * (size_t)dim);
+    // Word hash encoding — each word gets strong dedicated dimensions
+    char buf[BRAIN_MAX_STR];
+    strncpy(buf, text, BRAIN_MAX_STR-1); buf[BRAIN_MAX_STR-1]='\0';
+    // lowercase
+    for(char *p=buf;*p;p++) if(*p>='A'&&*p<='Z') *p+=32;
+    char *tok = strtok(buf, " \t\n.,!?;:\"'");
+    int32_t wi = 0;
+    while (tok) {
+        // Primary hash
+        uint32_t h1=5381, h2=0x811c9dc5;
+        for(char *p=tok;*p;p++){
+            h1=((h1<<5)+h1)+(unsigned char)*p;
+            h2^=(unsigned char)*p; h2*=0x01000193;
+        }
+        // Each word activates multiple dimensions strongly
+        for(int32_t k=0;k<8;k++){
+            int32_t idx=(int32_t)((h1*(uint32_t)(k+1)^h2)%(uint32_t)dim);
+            if(idx<0)idx=-idx;
+            float weight=1.0f/(float)(wi*0.5f+1.0f);
+            out[idx]+=weight*(k%2==0?1.0f:-0.3f);
+        }
+        // Bigram with next word position
+        int32_t pos_idx=(int32_t)((h1^(uint32_t)(wi*2654435761u))%(uint32_t)dim);
+        out[pos_idx]+=0.5f/(float)(wi+1);
+        wi++;
+        tok = strtok(NULL, " \t\n.,!?;:\"'");
+    }
+    // Normalize
+    float norm=0.0f;
+    for(int32_t i=0;i<dim;i++) norm+=out[i]*out[i];
+    norm=sqrtf(norm)+1e-8f;
+    for(int32_t i=0;i<dim;i++) out[i]/=norm;
+}
+
+// ── Cosine similarity ─────────────────────────
+static float brain_cosine(float *a, float *b, int32_t dim) {
+    float dot=0, na=0, nb=0;
+    for(int32_t i=0;i<dim;i++){
+        dot+=a[i]*b[i]; na+=a[i]*a[i]; nb+=b[i]*b[i];
+    }
+    return dot/(sqrtf(na)*sqrtf(nb)+1e-8f);
+}
+
+// ── Project through weight matrix ─────────────
+static void brain_project(float W[][BRAIN_EMBED_DIM], float *in, float *out, int32_t dim) {
+    for(int32_t i=0;i<dim;i++){
+        float s=0;
+        for(int32_t j=0;j<dim;j++) s+=W[i][j]*in[j];
+        out[i]=tanhf(s);
+    }
+}
+
+// ── Create brain ──────────────────────────────
+void *__taipan_brain_new(void) {
+    TaipanBrain *b = calloc(1, sizeof(TaipanBrain));
+    b->lr = BRAIN_LEARN_RATE;
+    // Initialize weight matrices with small random values
+    for(int32_t i=0;i<BRAIN_EMBED_DIM;i++)
+        for(int32_t j=0;j<BRAIN_EMBED_DIM;j++){
+            float v=((float)rand()/(float)RAND_MAX)*0.2f-0.1f;
+            b->W_encode[i][j]=(i==j)?1.0f+v:v*0.1f;
+            b->W_reason[i][j]=(i==j)?1.0f+v:v*0.1f;
+            b->W_output[i][j]=(i==j)?1.0f+v:v*0.1f;
+        }
+    return (void*)b;
+}
+
+void __taipan_brain_free(void *bp) { free(bp); }
+
+// ── Learn: store a new memory ─────────────────
+void __taipan_brain_learn(void *bp, const char *text) {
+    TaipanBrain *b = (TaipanBrain*)bp;
+    if (!b || b->n_memories >= BRAIN_MAX_MEMORIES) return;
+
+    // Encode text
+    float raw_embed[BRAIN_EMBED_DIM];
+    brain_encode_text(text, raw_embed, BRAIN_EMBED_DIM);
+
+    // Project through encoder
+    BrainMemory *m = &b->memories[b->n_memories];
+    brain_project(b->W_encode, raw_embed, m->embedding, BRAIN_EMBED_DIM);
+
+    strncpy(m->text, text, BRAIN_MAX_STR-1);
+    m->importance    = 1.0f;
+    m->access_count  = 0;
+    m->timestamp     = (int64_t)time(NULL);
+
+    // Link to similar memories (knowledge graph)
+    float best_sim = 0.0f;
+    int32_t best_idx = -1;
+    for(int32_t i=0;i<b->n_memories;i++){
+        float sim=brain_cosine(m->embedding, b->memories[i].embedding, BRAIN_EMBED_DIM);
+        if(sim>best_sim){best_sim=sim;best_idx=i;}
+    }
+    if(best_idx>=0 && best_sim>0.3f && b->n_edges<BRAIN_MAX_EDGES){
+        b->edges[b->n_edges].from   = b->n_memories;
+        b->edges[b->n_edges].to     = best_idx;
+        b->edges[b->n_edges].weight = best_sim;
+        b->n_edges++;
+    }
+
+    // Continual learning: update encoder weights toward this memory
+    for(int32_t i=0;i<BRAIN_EMBED_DIM;i++)
+        for(int32_t j=0;j<BRAIN_EMBED_DIM;j++)
+            b->W_encode[i][j]+=b->lr*m->embedding[i]*raw_embed[j]*0.01f;
+
+    b->n_memories++;
+    b->total_interactions++;
+}
+
+// ── Retrieve top-K similar memories ───────────
+static void brain_retrieve(TaipanBrain *b, float *query_embed,
+                            int32_t *indices, float *scores, int32_t k) {
+    for(int32_t i=0;i<k;i++){indices[i]=-1;scores[i]=-1.0f;}
+    for(int32_t i=0;i<b->n_memories;i++){
+        float sim=brain_cosine(query_embed,b->memories[i].embedding,BRAIN_EMBED_DIM);
+        // Boost by importance and access count
+        sim*=(1.0f+b->memories[i].importance*0.1f);
+        for(int32_t j=0;j<k;j++){
+            if(sim>scores[j]){
+                for(int32_t kk=k-1;kk>j;kk--){scores[kk]=scores[kk-1];indices[kk]=indices[kk-1];}
+                scores[j]=sim; indices[j]=i; break;
+            }
+        }
+    }
+}
+
+// ── Think: reason over memories and respond ───
+char *__taipan_brain_think(void *bp, const char *query) {
+    TaipanBrain *b = (TaipanBrain*)bp;
+    if (!b || b->n_memories == 0)
+        return strdup("I have no memories yet. Teach me with brain_learn().");
+
+    // Encode query
+    float raw_q[BRAIN_EMBED_DIM];
+    brain_encode_text(query, raw_q, BRAIN_EMBED_DIM);
+    float q_embed[BRAIN_EMBED_DIM];
+    brain_project(b->W_reason, raw_q, q_embed, BRAIN_EMBED_DIM);
+
+    // Retrieve top-K memories
+    int32_t indices[BRAIN_TOP_K];
+    float   scores[BRAIN_TOP_K];
+    brain_retrieve(b, q_embed, indices, scores, BRAIN_TOP_K);
+
+    // Update access counts and importance
+    for(int32_t i=0;i<BRAIN_TOP_K;i++){
+        if(indices[i]<0) break;
+        b->memories[indices[i]].access_count++;
+        b->memories[indices[i]].importance+=0.1f;
+    }
+
+    // Blend retrieved memories weighted by score
+    float context[BRAIN_EMBED_DIM] = {0};
+    float total_score = 0.0f;
+    for(int32_t i=0;i<BRAIN_TOP_K;i++){
+        if(indices[i]<0||scores[i]<=0) break;
+        float w=scores[i];
+        for(int32_t d=0;d<BRAIN_EMBED_DIM;d++)
+            context[d]+=w*b->memories[indices[i]].embedding[d];
+        total_score+=w;
+    }
+    if(total_score>0)
+        for(int32_t d=0;d<BRAIN_EMBED_DIM;d++) context[d]/=total_score;
+
+    // Add query to context
+    for(int32_t d=0;d<BRAIN_EMBED_DIM;d++)
+        context[d]=0.6f*context[d]+0.4f*q_embed[d];
+
+    // Find best matching memory to context
+    float best_sim=-1.0f;
+    int32_t best=-1;
+    for(int32_t i=0;i<b->n_memories;i++){
+        float projected[BRAIN_EMBED_DIM];
+        brain_project(b->W_output,b->memories[i].embedding,projected,BRAIN_EMBED_DIM);
+        float sim=brain_cosine(context,projected,BRAIN_EMBED_DIM);
+        if(sim>best_sim){best_sim=sim;best=i;}
+    }
+
+    // Continual learning: update W_reason toward query
+    b->total_interactions++;
+    for(int32_t i=0;i<BRAIN_EMBED_DIM;i++)
+        for(int32_t j=0;j<BRAIN_EMBED_DIM;j++)
+            b->W_reason[i][j]+=b->lr*q_embed[i]*raw_q[j]*0.005f;
+
+    if(best<0) return strdup("I don't know.");
+
+    // Build response: best memory + graph-linked memories
+    char *response = malloc(BRAIN_MAX_STR * 4);
+    snprintf(response, BRAIN_MAX_STR, "%s", b->memories[best].text);
+
+    // Check knowledge graph for related facts
+    int32_t added=0;
+    for(int32_t e=0;e<b->n_edges&&added<2;e++){
+        int32_t rel=-1;
+        if(b->edges[e].from==best) rel=b->edges[e].to;
+        else if(b->edges[e].to==best) rel=b->edges[e].from;
+        if(rel>=0&&rel!=best&&b->edges[e].weight>0.4f){
+            strncat(response," | ",3);
+            strncat(response,b->memories[rel].text,BRAIN_MAX_STR-1);
+            added++;
+        }
+    }
+    return response;
+}
+
+// ── Forget: decay old memories ────────────────
+void __taipan_brain_forget(void *bp, float decay_rate) {
+    TaipanBrain *b = (TaipanBrain*)bp;
+    if(!b) return;
+    int64_t now = (int64_t)time(NULL);
+    for(int32_t i=0;i<b->n_memories;i++){
+        int64_t age = now - b->memories[i].timestamp;
+        b->memories[i].importance *= (1.0f - decay_rate * (float)age / 86400.0f);
+        if(b->memories[i].importance<0) b->memories[i].importance=0;
+    }
+}
+
+// ── Memory stats ──────────────────────────────
+int32_t __taipan_brain_size(void *bp) {
+    return bp ? ((TaipanBrain*)bp)->n_memories : 0;
+}
+int32_t __taipan_brain_interactions(void *bp) {
+    return bp ? ((TaipanBrain*)bp)->total_interactions : 0;
+}
+int32_t __taipan_brain_edges(void *bp) {
+    return bp ? ((TaipanBrain*)bp)->n_edges : 0;
+}
+
+// ── Most important memory ─────────────────────
+char *__taipan_brain_most_important(void *bp) {
+    TaipanBrain *b=(TaipanBrain*)bp;
+    if(!b||b->n_memories==0) return strdup("none");
+    int32_t best=0;
+    float best_imp=b->memories[0].importance*(float)(b->memories[0].access_count+1);
+    for(int32_t i=1;i<b->n_memories;i++){
+        float imp=b->memories[i].importance*(float)(b->memories[i].access_count+1);
+        if(imp>best_imp){best_imp=imp;best=i;}
+    }
+    return strdup(b->memories[best].text);
+}
+
+// ── Search: find memories containing keyword ──
+char *__taipan_brain_search(void *bp, const char *keyword) {
+    TaipanBrain *b=(TaipanBrain*)bp;
+    if(!b) return strdup("");
+    char *result=malloc(BRAIN_MAX_STR*8);
+    result[0]='\0';
+    int32_t found=0;
+    for(int32_t i=0;i<b->n_memories&&found<5;i++){
+        if(strstr(b->memories[i].text,keyword)){
+            if(found>0) strncat(result," | ",3);
+            strncat(result,b->memories[i].text,BRAIN_MAX_STR-1);
+            found++;
+        }
+    }
+    if(found==0) return strdup("No memories found.");
+    return result;
+}
+
+// ── Save/load brain to disk ───────────────────
+int32_t __taipan_brain_save(void *bp, const char *path) {
+    TaipanBrain *b=(TaipanBrain*)bp;
+    if(!b) return -1;
+    FILE *f=fopen(path,"wb");
+    if(!f) return -1;
+    fwrite(&b->n_memories,sizeof(int32_t),1,f);
+    fwrite(&b->n_edges,sizeof(int32_t),1,f);
+    fwrite(&b->total_interactions,sizeof(int32_t),1,f);
+    fwrite(b->memories,sizeof(BrainMemory),(size_t)b->n_memories,f);
+    fwrite(b->edges,sizeof(BrainEdge),(size_t)b->n_edges,f);
+    fwrite(b->W_encode,sizeof(b->W_encode),1,f);
+    fwrite(b->W_reason,sizeof(b->W_reason),1,f);
+    fwrite(b->W_output,sizeof(b->W_output),1,f);
+    fclose(f);
+    return 0;
+}
+
+void *__taipan_brain_load(const char *path) {
+    FILE *f=fopen(path,"rb");
+    if(!f) return NULL;
+    TaipanBrain *b=calloc(1,sizeof(TaipanBrain));
+    b->lr=BRAIN_LEARN_RATE;
+    fread(&b->n_memories,sizeof(int32_t),1,f);
+    fread(&b->n_edges,sizeof(int32_t),1,f);
+    fread(&b->total_interactions,sizeof(int32_t),1,f);
+    fread(b->memories,sizeof(BrainMemory),(size_t)b->n_memories,f);
+    fread(b->edges,sizeof(BrainEdge),(size_t)b->n_edges,f);
+    fread(b->W_encode,sizeof(b->W_encode),1,f);
+    fread(b->W_reason,sizeof(b->W_reason),1,f);
+    fread(b->W_output,sizeof(b->W_output),1,f);
+    fclose(f);
+    return (void*)b;
+}
+
+// ── Teach: learn multiple facts at once ───────
+void __taipan_brain_teach(void *bp, const char **facts, int32_t n) {
+    for(int32_t i=0;i<n;i++) __taipan_brain_learn(bp,facts[i]);
+}
+
+// ── Similarity between two texts ──────────────
+float __taipan_brain_similarity(void *bp, const char *a, const char *b_text) {
+    TaipanBrain *b=(TaipanBrain*)bp;
+    float ea[BRAIN_EMBED_DIM], eb[BRAIN_EMBED_DIM];
+    brain_encode_text(a,  ea, BRAIN_EMBED_DIM);
+    brain_encode_text(b_text, eb, BRAIN_EMBED_DIM);
+    float pa[BRAIN_EMBED_DIM], pb[BRAIN_EMBED_DIM];
+    brain_project(b->W_reason, ea, pa, BRAIN_EMBED_DIM);
+    brain_project(b->W_reason, eb, pb, BRAIN_EMBED_DIM);
+    return brain_cosine(pa, pb, BRAIN_EMBED_DIM);
+}

@@ -1,0 +1,135 @@
+use std.io
+use std.brain
+use std.string
+
+fn main() {
+    println("=== std.brain — Persistent Neural Memory ===")
+    println("Building an AI that remembers and learns")
+    println("")
+
+    let brain = brain_new()
+
+    // Teach facts about the world
+    println("--- Teaching facts ---")
+    brain_learn(brain, "Paris is the capital of France")
+    brain_learn(brain, "France is a country in Western Europe")
+    brain_learn(brain, "The Eiffel Tower is located in Paris")
+    brain_learn(brain, "Lagos is the largest city in Nigeria")
+    brain_learn(brain, "Nigeria is a country in West Africa")
+    brain_learn(brain, "Abuja is the capital of Nigeria")
+    brain_learn(brain, "Taipan is a programming language by NextGen Inc")
+    brain_learn(brain, "NextGen Inc is based in Lagos Nigeria")
+    brain_learn(brain, "Venom is the compiler for the Taipan language")
+    brain_learn(brain, "Python is a popular programming language")
+    brain_learn(brain, "C is a systems programming language")
+    brain_learn(brain, "Transformers are neural networks using attention")
+    brain_learn(brain, "Neural networks learn from data")
+    brain_learn(brain, "Machine learning is a subset of artificial intelligence")
+    brain_learn(brain, "Abiodun is building Taipan in Lagos")
+
+    println("memories stored:")
+    println(brain_size(brain))
+    println("knowledge graph edges:")
+    println(brain_edges(brain))
+    println("")
+
+    // Ask questions
+    println("--- Asking questions ---")
+    println("")
+
+    print("Q: What is the capital of France?")
+    println("")
+    print("A: ")
+    println(brain_think(brain, "capital France"))
+    println("")
+
+    print("Q: Tell me about Paris")
+    println("")
+    print("A: ")
+    println(brain_think(brain, "Paris"))
+    println("")
+
+    print("Q: What is Taipan?")
+    println("")
+    print("A: ")
+    println(brain_think(brain, "Taipan language"))
+    println("")
+
+    print("Q: Where is NextGen Inc?")
+    println("")
+    print("A: ")
+    println(brain_think(brain, "NextGen Inc location"))
+    println("")
+
+    print("Q: What is machine learning?")
+    println("")
+    print("A: ")
+    println(brain_think(brain, "machine learning AI"))
+    println("")
+
+    print("Q: Tell me about Nigeria")
+    println("")
+    print("A: ")
+    println(brain_think(brain, "Nigeria Africa"))
+    println("")
+
+    // Similarity test
+    println("--- Similarity scores ---")
+    print("Paris / France similarity: ")
+    println(brain_similarity(brain, "Paris", "France"))
+    print("Taipan / Python similarity: ")
+    println(brain_similarity(brain, "Taipan programming", "Python programming"))
+    print("Nigeria / France similarity: ")
+    println(brain_similarity(brain, "Nigeria", "France"))
+    println("")
+
+    // Search
+    println("--- Search ---")
+    print("Search 'Lagos': ")
+    println(brain_search(brain, "Lagos"))
+    println("")
+    print("Search 'capital': ")
+    println(brain_search(brain, "capital"))
+    println("")
+
+    // Most important memory
+    println("--- Most important memory ---")
+    println(brain_most_important(brain))
+    println("")
+
+    // Stats
+    println("--- Brain stats ---")
+    print("total memories: ")
+    println(brain_size(brain))
+    print("total interactions: ")
+    println(brain_interactions(brain))
+    print("knowledge edges: ")
+    println(brain_edges(brain))
+    println("")
+
+    // Save and reload
+    println("--- Save and reload ---")
+    brain_save(brain, "brain.bin")
+    println("saved to brain.bin")
+    let brain2 = brain_load("brain.bin")
+    print("loaded brain size: ")
+    println(brain_size(brain2))
+    print("Q after reload - What is Venom?")
+    println("")
+    print("A: ")
+    println(brain_think(brain2, "Venom compiler"))
+    println("")
+
+    // Continual learning - teach new fact after reload
+    println("--- Continual learning ---")
+    brain_learn(brain2, "Taipan is faster than Python for AI workloads")
+    brain_learn(brain2, "Taipan has a builtin transformer library")
+    print("Q: Why use Taipan?")
+    println("")
+    print("A: ")
+    println(brain_think(brain2, "why use Taipan fast"))
+    println("")
+
+    println("=== Brain demo complete ===")
+    println("Taipan: the only language with a brain built in")
+}
