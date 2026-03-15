@@ -1,0 +1,45 @@
+use std.io
+use std.math
+use mymath
+use mystr
+
+fn main() {
+    println("=== Multi-file Compilation Test ===")
+    println("")
+
+    // Use functions from mymath.tp
+    println("--- mymath module ---")
+    print("square(5.0) = ")
+    println(square(5.0))
+
+    print("cube(3.0) = ")
+    println(cube(3.0))
+
+    print("clamp(15.0, 0.0, 10.0) = ")
+    println(clamp(15.0, 0.0, 10.0))
+
+    print("factorial(6) = ")
+    println(factorial(6))
+
+    // Use functions from mystr.tp
+    println("")
+    println("--- mystr module ---")
+    let msg: str = greet("Abiodun")
+    println(msg)
+
+    let loud: str = shout("taipan is fast")
+    println(loud)
+
+    // Use std.math alongside custom modules
+    println("")
+    println("--- std.math + mymath ---")
+    let r: f32 = 5.0
+    print("circle area = pi * square(r) = ")
+    println(3.14159265 * square(r))
+
+    print("sqrt(cube(4.0)) = ")
+    println(sqrt(cube(4.0)))
+
+    println("")
+    println("=== Multi-file compilation works! ===")
+}

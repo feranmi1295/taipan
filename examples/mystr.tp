@@ -1,0 +1,18 @@
+use std.string
+use std.io
+
+fn greet(name: str) -> str {
+    return str_replace("Hello, NAME!", "NAME", name)
+}
+
+fn shout(s: str) -> str {
+    return str_upper(s)
+}
+
+fn is_empty(s: str) -> i32 {
+    let l: i32 = str_len(s)
+    if l == 0 {
+        return 1
+    }
+    return 0
+}

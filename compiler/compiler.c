@@ -33,6 +33,54 @@ int compiler_load_source(CompilerOptions *opts) {
 }
 
 // ─────────────────────────────────────────────
+//  Load all source files (multi-file)
+// ─────────────────────────────────────────────
+int compiler_load_all_sources(CompilerOptions *opts) {
+    for (int i = 0; i < opts->n_files; i++) {
+        FILE *f = fopen(opts->src_paths[i], "rb");
+        if (!f) {
+            fprintf(stderr, "venom: cannot open '%s'\n", opts->src_paths[i]);
+            return 1;
+        }
+        fseek(f, 0, SEEK_END);
+        long sz = ftell(f);
+        rewind(f);
+        opts->sources[i] = malloc((size_t)sz + 1);
+        fread(opts->sources[i], 1, (size_t)sz, f);
+        opts->sources[i][sz] = '\0';
+        fclose(f);
+    }
+    return 0;
+}
+
+// ─────────────────────────────────────────────
+//  Merge multiple AST programs into one
+//  All top-level nodes from extra files are
+//  appended to the first program's stmt list
+// ─────────────────────────────────────────────
+static ASTNode *merge_programs(ASTNode **programs, int n) {
+    if (n == 0) return NULL;
+    if (n == 1) return programs[0];
+    ASTNode *base = programs[0];
+    for (int i = 1; i < n; i++) {
+        ASTNode *extra = programs[i];
+        if (!extra) continue;
+        int base_count  = base->as.program.count;
+        int extra_count = extra->as.program.count;
+        int new_count   = base_count + extra_count;
+        base->as.program.stmts = realloc(base->as.program.stmts,
+            sizeof(ASTNode*) * (size_t)new_count);
+        for (int j = 0; j < extra_count; j++)
+            base->as.program.stmts[base_count + j] = extra->as.program.stmts[j];
+        base->as.program.count = new_count;
+        // free only the wrapper, not the nodes (they're merged)
+        free(extra->as.program.stmts);
+        free(extra);
+    }
+    return base;
+}
+
+// ─────────────────────────────────────────────
 //  Derive output path from input path
 //  e.g.  hello.tp  →  hello.ll
 // ─────────────────────────────────────────────
@@ -52,39 +100,56 @@ static void derive_out_path(const char *src, char *buf, int bufsz) {
 int compiler_run(CompilerOptions *opts) {
     int exit_code = 0;
 
-    // ── Stage 1: Lex ─────────────────────────
-    if (opts->verbose) fprintf(stderr, "[venom] Lexing %s ...\n", opts->src_path);
+    // ── Multi-file: parse all source files ───
+    int n = opts->n_files > 0 ? opts->n_files : 1;
+    ASTNode **programs = calloc((size_t)n, sizeof(ASTNode*));
 
-    Lexer lexer;
-    lexer_init(&lexer, opts->source);
+    for (int fi = 0; fi < n; fi++) {
+        const char *src_text = (opts->n_files > 0)
+            ? opts->sources[fi]
+            : opts->source;
+        const char *src_name = (opts->n_files > 0)
+            ? opts->src_paths[fi]
+            : opts->src_path;
 
-    if (opts->emit_tokens) {
-        fprintf(stdout, "; ── Token stream ────────────────────────\n");
-        Lexer tmp; lexer_init(&tmp, opts->source);
-        while (1) {
-            Token tok = lexer_next_token(&tmp);
-            if (tok.type == TOK_NEWLINE || tok.type == TOK_COMMENT) continue;
-            token_print(&tok);
-            if (tok.type == TOK_EOF || tok.type == TOK_ERROR) break;
+        if (opts->verbose)
+            fprintf(stderr, "[venom] Lexing %s ...\n", src_name);
+
+        Lexer lexer;
+        lexer_init(&lexer, src_text);
+
+        if (fi == 0 && opts->emit_tokens) {
+            fprintf(stdout, "; ── Token stream ────────────────────────\n");
+            Lexer tmp; lexer_init(&tmp, src_text);
+            while (1) {
+                Token tok = lexer_next_token(&tmp);
+                if (tok.type == TOK_NEWLINE || tok.type == TOK_COMMENT) continue;
+                token_print(&tok);
+                if (tok.type == TOK_EOF || tok.type == TOK_ERROR) break;
+            }
+            fprintf(stdout, "\n");
+            lexer_init(&lexer, src_text);
         }
-        fprintf(stdout, "\n");
-        // re-init lexer for further stages
-        lexer_init(&lexer, opts->source);
+
+        if (opts->verbose)
+            fprintf(stderr, "[venom] Parsing %s ...\n", src_name);
+
+        Parser parser;
+        parser_init(&parser, &lexer);
+        programs[fi] = parser_run(&parser);
+
+        opts->had_parse_error |= parser.had_error;
+        if (parser.had_error) {
+            fprintf(stderr, "venom: parse errors in '%s'\n", src_name);
+            for (int k=0;k<=fi;k++) if(programs[k]) ast_free(programs[k]);
+            free(programs);
+            return 1;
+        }
     }
 
-    // ── Stage 2: Parse ───────────────────────
-    if (opts->verbose) fprintf(stderr, "[venom] Parsing ...\n");
-
-    Parser parser;
-    parser_init(&parser, &lexer);
-    ASTNode *program = parser_run(&parser);
-
-    opts->had_parse_error = parser.had_error;
-    if (parser.had_error) {
-        fprintf(stderr, "venom: parse errors in '%s'\n", opts->src_path);
-        ast_free(program);
-        return 1;
-    }
+    // ── Merge all ASTs into one program ───────
+    ASTNode *program = merge_programs(programs, n);
+    free(programs);
 
     if (opts->emit_ast) {
         fprintf(stdout, "; ── AST ─────────────────────────────────\n");
@@ -101,7 +166,7 @@ int compiler_run(CompilerOptions *opts) {
 
     opts->had_sem_error = analyzer.had_error;
     if (analyzer.had_error) {
-        fprintf(stderr, "venom: semantic errors in '%s'\n", opts->src_path);
+        fprintf(stderr, "venom: semantic errors\n");
         analyzer_free(&analyzer);
         ast_free(program);
         return 1;
@@ -241,4 +306,8 @@ int compiler_run(CompilerOptions *opts) {
 void compiler_free(CompilerOptions *opts) {
     free(opts->source);
     opts->source = NULL;
+    for (int i = 0; i < opts->n_files; i++) {
+        free(opts->sources[i]);
+        opts->sources[i] = NULL;
+    }
 }

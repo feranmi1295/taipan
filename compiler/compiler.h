@@ -6,11 +6,15 @@
 //  Orchestrates: source → lex → parse → analyze → codegen → LLVM IR
 // ─────────────────────────────────────────────
 
-typedef struct {
-    // Input
-    const char *src_path;      // path to .tp file
-    char       *source;        // loaded source text
+#define MAX_SOURCE_FILES 64
 
+typedef struct {
+    // Input — multi-file support
+    const char *src_path;                    // primary source file
+    const char *src_paths[MAX_SOURCE_FILES]; // all source files
+    char       *sources[MAX_SOURCE_FILES];   // loaded source texts
+    int         n_files;                     // number of source files
+    char       *source;                      // legacy single-file source
     // Output control
     const char *out_path;      // output .ll path (NULL = derive from src)
     int         emit_tokens;   // --emit-tokens
@@ -19,7 +23,6 @@ typedef struct {
     int         run_llc;       // --compile: run llc after IR
     int         run_link;      // --link: run clang to produce executable
     int         verbose;       // --verbose
-
     // Results
     int         had_lex_error;
     int         had_parse_error;

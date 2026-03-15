@@ -76,11 +76,14 @@ int main(int argc, char **argv) {
             return 1;
         }
         else {
-            if (opts.src_path) {
-                fprintf(stderr, "venom: multiple input files not supported\n");
+            // Accept multiple .tp files
+            if (opts.n_files >= MAX_SOURCE_FILES) {
+                fprintf(stderr, "venom: too many input files (max %d)\n", MAX_SOURCE_FILES);
                 return 1;
             }
-            opts.src_path = argv[i];
+            opts.src_paths[opts.n_files] = argv[i];
+            opts.n_files++;
+            if (!opts.src_path) opts.src_path = argv[i]; // primary = first
         }
     }
 
@@ -97,9 +100,67 @@ int main(int argc, char **argv) {
                 opts.src_path);
     }
 
-    // ── Load source ───────────────────────────
-    if (compiler_load_source(&opts) != 0)
-        return 1;
+    // ── Resolve use statements to local files ─
+    // Scan primary file for "use <name>" that match local .tp files
+    // e.g. "use math" -> looks for math.tp in same dir
+    if (opts.n_files == 1) {
+        FILE *scan = fopen(opts.src_paths[0], "r");
+        if (scan) {
+            char line[512];
+            // Get directory of primary file
+            char dir[512] = ".";
+            const char *slash = strrchr(opts.src_paths[0], '/');
+            if (slash) {
+                size_t dlen = (size_t)(slash - opts.src_paths[0]);
+                strncpy(dir, opts.src_paths[0], dlen);
+                dir[dlen] = '\0';
+            }
+            while (fgets(line, sizeof(line), scan) && opts.n_files < MAX_SOURCE_FILES) {
+                // Skip std library uses
+                if (strncmp(line, "use std.", 8) == 0) continue;
+                if (strncmp(line, "use ", 4) != 0) continue;
+                // Extract module name
+                char modname[256] = {0};
+                int mi = 0;
+                const char *p = line + 4;
+                while (*p && *p != '\n' && *p != ' ' && *p != '\r' && mi < 255)
+                    modname[mi++] = *p++;
+                modname[mi] = '\0';
+                if (mi == 0) continue;
+                // Build file path: dir/modname.tp
+                static char fpath[MAX_SOURCE_FILES][512];
+                snprintf(fpath[opts.n_files], 512, "%s/%s.tp", dir, modname);
+                // Check if file exists
+                FILE *test = fopen(fpath[opts.n_files], "r");
+                if (test) {
+                    fclose(test);
+                    // Add to file list if not already there
+                    int already = 0;
+                    for (int k = 0; k < opts.n_files; k++)
+                        if (!strcmp(opts.src_paths[k], fpath[opts.n_files])) { already=1; break; }
+                    if (!already) {
+                        opts.src_paths[opts.n_files] = fpath[opts.n_files];
+                        opts.n_files++;
+                        if (opts.verbose)
+                            fprintf(stderr, "[venom] auto-importing %s\n", fpath[opts.n_files-1]);
+                    }
+                }
+            }
+            fclose(scan);
+        }
+    }
+
+    // ── Load source(s) ────────────────────────
+    if (opts.n_files > 0) {
+        if (compiler_load_all_sources(&opts) != 0)
+            return 1;
+    } else {
+        // legacy single file
+        opts.src_paths[0] = opts.src_path;
+        opts.n_files = 1;
+        if (compiler_load_all_sources(&opts) != 0)
+            return 1;
+    }
 
     // ── Run pipeline ──────────────────────────
     int result = compiler_run(&opts);
@@ -120,7 +181,10 @@ int main(int argc, char **argv) {
             strncat(out_display, ".ll", sizeof(out_display) - 1);
             (void)len;
         }
-        fprintf(stderr, "venom: compiled '%s' → %s\n", opts.src_path, out_display);
+        if (opts.n_files > 1)
+            fprintf(stderr, "venom: compiled %d files → %s\n", opts.n_files, out_display);
+        else
+            fprintf(stderr, "venom: compiled '%s' → %s\n", opts.src_path, out_display);
     }
 
     compiler_free(&opts);
