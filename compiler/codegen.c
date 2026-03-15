@@ -1055,6 +1055,26 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
                     {"brain_save",          "@__taipan_brain_save",          "i32"},
                     {"brain_load",          "@__taipan_brain_load",          "i8*"},
                     {"brain_similarity",    "@__taipan_brain_similarity",    "float"},
+                    // std.neuro
+                    {"neuro_new",            "@__taipan_neuro_new",            "i8*"},
+                    {"neuro_free",           "@__taipan_neuro_free",           "void"},
+                    {"neuro_add_neuron",     "@__taipan_neuro_add_neuron",     "i32"},
+                    {"neuro_connect",        "@__taipan_neuro_connect",        "i32"},
+                    {"neuro_inject",         "@__taipan_neuro_inject",         "void"},
+                    {"neuro_step",           "@__taipan_neuro_step",           "void"},
+                    {"neuro_run",            "@__taipan_neuro_run",            "void"},
+                    {"neuro_potential",      "@__taipan_neuro_potential",      "float"},
+                    {"neuro_fired",          "@__taipan_neuro_fired",          "i32"},
+                    {"neuro_spike_count",    "@__taipan_neuro_spike_count",    "i32"},
+                    {"neuro_time",           "@__taipan_neuro_time",           "float"},
+                    {"neuro_total_spikes",   "@__taipan_neuro_total_spikes",   "i32"},
+                    {"neuro_n_neurons",      "@__taipan_neuro_n_neurons",      "i32"},
+                    {"neuro_synapse_weight", "@__taipan_neuro_synapse_weight", "float"},
+                    {"neuro_reset",          "@__taipan_neuro_reset",          "void"},
+                    {"neuro_rate_encode",    "@__taipan_neuro_rate_encode",    "void"},
+                    {"neuro_add_layer",      "@__taipan_neuro_add_layer",      "i32"},
+                    {"neuro_connect_layers", "@__taipan_neuro_connect_layers", "void"},
+                    {"neuro_print_raster",   "@__taipan_neuro_print_raster",   "void"},
                     // str_len alias
                     {"str_len", "@__taipan_str_len", "i32"},
                     {NULL, NULL, NULL}
@@ -2032,6 +2052,26 @@ void codegen_run(Codegen *cg, ASTNode *program) {
     fputs("declare i32 @__taipan_brain_save(i8*, i8*)\n", cg->out);
     fputs("declare i8* @__taipan_brain_load(i8*)\n", cg->out);
     fputs("declare float @__taipan_brain_similarity(i8*, i8*, i8*)\n", cg->out);
+    // std.neuro
+    fputs("declare i8* @__taipan_neuro_new(float)\n", cg->out);
+    fputs("declare void @__taipan_neuro_free(i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_neuro_add_neuron(i8*, float, float, i32)\n", cg->out);
+    fputs("declare i32 @__taipan_neuro_connect(i8*, i32, i32, float, float)\n", cg->out);
+    fputs("declare void @__taipan_neuro_inject(i8*, i32, float)\n", cg->out);
+    fputs("declare void @__taipan_neuro_step(i8*)\n", cg->out);
+    fputs("declare void @__taipan_neuro_run(i8*, i32)\n", cg->out);
+    fputs("declare float @__taipan_neuro_potential(i8*, i32)\n", cg->out);
+    fputs("declare i32 @__taipan_neuro_fired(i8*, i32)\n", cg->out);
+    fputs("declare i32 @__taipan_neuro_spike_count(i8*, i32)\n", cg->out);
+    fputs("declare float @__taipan_neuro_time(i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_neuro_total_spikes(i8*)\n", cg->out);
+    fputs("declare i32 @__taipan_neuro_n_neurons(i8*)\n", cg->out);
+    fputs("declare float @__taipan_neuro_synapse_weight(i8*, i32)\n", cg->out);
+    fputs("declare void @__taipan_neuro_reset(i8*)\n", cg->out);
+    fputs("declare void @__taipan_neuro_rate_encode(i8*, i32, float, i32)\n", cg->out);
+    fputs("declare i32 @__taipan_neuro_add_layer(i8*, i32, float, float, i32)\n", cg->out);
+    fputs("declare void @__taipan_neuro_connect_layers(i8*, i32, i32, i32, i32, float, float)\n", cg->out);
+    fputs("declare void @__taipan_neuro_print_raster(i8*, i32)\n", cg->out);
     for (int i = 0; i < cg->str_count; i++) {
         const char *s = cg->str_literals[i];
         // Convert \n \t etc to LLVM hex escapes and count bytes

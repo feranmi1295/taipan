@@ -350,3 +350,24 @@ char   *__taipan_brain_search       (void *b, const char *keyword);
 int32_t __taipan_brain_save         (void *b, const char *path);
 void   *__taipan_brain_load         (const char *path);
 float   __taipan_brain_similarity   (void *b, const char *a, const char *b_text);
+
+// std.neuro — Spiking Neural Networks
+void   *__taipan_neuro_new           (float dt);
+void    __taipan_neuro_free          (void *net);
+int32_t __taipan_neuro_add_neuron    (void *net, float threshold, float leak, int32_t layer);
+int32_t __taipan_neuro_connect       (void *net, int32_t pre, int32_t post, float weight, float delay);
+void    __taipan_neuro_inject        (void *net, int32_t id, float current);
+void    __taipan_neuro_step          (void *net);
+void    __taipan_neuro_run           (void *net, int32_t steps);
+float   __taipan_neuro_potential     (void *net, int32_t id);
+int32_t __taipan_neuro_fired         (void *net, int32_t id);
+int32_t __taipan_neuro_spike_count   (void *net, int32_t id);
+float   __taipan_neuro_time          (void *net);
+int32_t __taipan_neuro_total_spikes  (void *net);
+int32_t __taipan_neuro_n_neurons     (void *net);
+float   __taipan_neuro_synapse_weight(void *net, int32_t sid);
+void    __taipan_neuro_reset         (void *net);
+void    __taipan_neuro_rate_encode   (void *net, int32_t id, float rate, int32_t window);
+int32_t __taipan_neuro_add_layer     (void *net, int32_t n, float threshold, float leak, int32_t layer_id);
+void    __taipan_neuro_connect_layers(void *net, int32_t fs, int32_t fn, int32_t ts, int32_t tn, float w, float noise);
+void    __taipan_neuro_print_raster  (void *net, int32_t width);

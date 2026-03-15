@@ -1,0 +1,115 @@
+use std.io
+use std.neuro
+use std.string
+
+fn main() {
+    println("=== std.neuro — Spiking Neural Networks ===")
+    println("Leaky Integrate-and-Fire neurons with STDP")
+    println("")
+
+    // Create network with dt=0.1ms
+    let net = neuro_new(0.1)
+
+    // Test 1: Single neuron firing
+    println("=== Test 1: Single neuron ===")
+    let n0: i32 = neuro_add_neuron(net, -55.0, 0.9, 0)
+    println("neuron added, id:")
+    println(n0)
+
+    // Inject enough current to fire
+    neuro_inject(net, n0, 15.0)
+    neuro_step(net)
+    print("fired after injection: ")
+    println(neuro_fired(net, n0))
+
+    // Run 20 steps with periodic injection
+    let i: i32 = 0
+    while i < 20 {
+        if neuro_fired(net, n0) {
+            neuro_inject(net, n0, 12.0)
+        }
+        neuro_step(net)
+        i += 1
+    }
+    print("spike count after 20 steps: ")
+    println(neuro_spike_count(net, n0))
+    print("simulation time: ")
+    println(neuro_time(net))
+
+    // Test 2: Two connected neurons
+    println("")
+    println("=== Test 2: Connected neurons ===")
+    neuro_reset(net)
+    let pre: i32  = neuro_add_neuron(net, -55.0, 0.9, 0)
+    let post: i32 = neuro_add_neuron(net, -55.0, 0.95, 1)
+    let syn: i32  = neuro_connect(net, pre, post, 2.5, 1.0)
+    println("synapse weight:")
+    println(neuro_synapse_weight(net, syn))
+
+    // Fire pre-synaptic neuron
+    neuro_inject(net, pre, 15.0)
+    neuro_run(net, 10)
+
+    print("pre spike count: ")
+    println(neuro_spike_count(net, pre))
+    print("post spike count: ")
+    println(neuro_spike_count(net, post))
+    print("total spikes: ")
+    println(neuro_total_spikes(net))
+
+    // Test 3: Layer-based network
+    println("")
+    println("=== Test 3: Multi-layer spiking network ===")
+    neuro_reset(net)
+
+    let l0: i32 = neuro_add_layer(net, 4, -55.0, 0.9, 0)
+    let l1: i32 = neuro_add_layer(net, 3, -55.0, 0.92, 1)
+    let l2: i32 = neuro_add_layer(net, 2, -55.0, 0.95, 2)
+
+    print("input layer starts at: ")
+    println(l0)
+    print("hidden layer starts at: ")
+    println(l1)
+    print("output layer starts at: ")
+    println(l2)
+
+    // Connect layers fully
+    neuro_connect_layers(net, l0, 4, l1, 3, 1.5, 0.3)
+    neuro_connect_layers(net, l1, 3, l2, 2, 1.8, 0.2)
+
+    println("total neurons:")
+    println(neuro_n_neurons(net))
+
+    // Drive input layer
+    let j: i32 = 0
+    while j < 50 {
+        neuro_inject(net, l0, 8.0)
+        neuro_inject(net, l0 + 1, 10.0)
+        neuro_inject(net, l0 + 2, 6.0)
+        neuro_step(net)
+        j += 1
+    }
+
+    println("spikes per neuron:")
+    let k: i32 = 0
+    while k < neuro_n_neurons(net) {
+        print("  neuron ")
+        print(int_to_str(k))
+        print(" layer ")
+        print(int_to_str(k / 4))
+        print(" spikes: ")
+        println(neuro_spike_count(net, k))
+        k += 1
+    }
+
+    println("total network spikes:")
+    println(neuro_total_spikes(net))
+
+    // Print spike raster
+    println("")
+    neuro_print_raster(net, 50)
+
+    println("")
+    println("=== std.neuro working ===")
+    println("Taipan: systems lang + AI + neuromorphic computing")
+}

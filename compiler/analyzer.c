@@ -991,6 +991,26 @@ void analyzer_init(Analyzer *a) {
     { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_STR); scope_define_fn(a,"brain_save",p,2,type_new(TY_I32)); }
     { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_STR); scope_define_fn(a,"brain_load",p,1,type_new(TY_ANY)); }
     { TypeInfo **p=calloc(3,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_STR); p[2]=type_new(TY_STR); scope_define_fn(a,"brain_similarity",p,3,type_new(TY_F32)); }
+    // std.neuro
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_F32); scope_define_fn(a,"neuro_new",p,1,type_new(TY_ANY)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"neuro_free",p,1,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(4,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_F32); p[2]=type_new(TY_F32); p[3]=type_new(TY_I32); scope_define_fn(a,"neuro_add_neuron",p,4,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(5,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_I32); p[2]=type_new(TY_I32); p[3]=type_new(TY_F32); p[4]=type_new(TY_F32); scope_define_fn(a,"neuro_connect",p,5,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(3,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_I32); p[2]=type_new(TY_F32); scope_define_fn(a,"neuro_inject",p,3,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"neuro_step",p,1,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_I32); scope_define_fn(a,"neuro_run",p,2,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_I32); scope_define_fn(a,"neuro_potential",p,2,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_I32); scope_define_fn(a,"neuro_fired",p,2,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_I32); scope_define_fn(a,"neuro_spike_count",p,2,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"neuro_time",p,1,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"neuro_total_spikes",p,1,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"neuro_n_neurons",p,1,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_I32); scope_define_fn(a,"neuro_synapse_weight",p,2,type_new(TY_F32)); }
+    { TypeInfo **p=calloc(1,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); scope_define_fn(a,"neuro_reset",p,1,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(4,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_I32); p[2]=type_new(TY_F32); p[3]=type_new(TY_I32); scope_define_fn(a,"neuro_rate_encode",p,4,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(5,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_I32); p[2]=type_new(TY_F32); p[3]=type_new(TY_F32); p[4]=type_new(TY_I32); scope_define_fn(a,"neuro_add_layer",p,5,type_new(TY_I32)); }
+    { TypeInfo **p=calloc(7,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_I32); p[2]=type_new(TY_I32); p[3]=type_new(TY_I32); p[4]=type_new(TY_I32); p[5]=type_new(TY_F32); p[6]=type_new(TY_F32); scope_define_fn(a,"neuro_connect_layers",p,7,type_new(TY_VOID)); }
+    { TypeInfo **p=calloc(2,sizeof(TypeInfo*)); p[0]=type_new(TY_ANY); p[1]=type_new(TY_I32); scope_define_fn(a,"neuro_print_raster",p,2,type_new(TY_VOID)); }
 }
 
 void analyzer_run(Analyzer *a, ASTNode *program) {

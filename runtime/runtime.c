@@ -3804,3 +3804,313 @@ float __taipan_brain_similarity(void *bp, const char *a, const char *b_text) {
     brain_project(b->W_reason, eb, pb, BRAIN_EMBED_DIM);
     return brain_cosine(pa, pb, BRAIN_EMBED_DIM);
 }
+
+// ─────────────────────────────────────────────
+//  std.neuro — Spiking Neural Networks
+//  Event-driven, neuromorphic computing
+//  Leaky Integrate-and-Fire (LIF) neurons
+// ─────────────────────────────────────────────
+
+#define NEURO_MAX_NEURONS  16384
+#define NEURO_MAX_SYNAPSES 65536
+#define NEURO_MAX_SPIKE_BUF 4096
+
+// ── Neuron (Leaky Integrate-and-Fire) ────────
+typedef struct {
+    float   membrane_potential;  // V_m
+    float   threshold;           // V_th — fire when V_m >= V_th
+    float   resting_potential;   // V_rest
+    float   reset_potential;     // V_reset after spike
+    float   leak;                // leak factor per timestep (0-1)
+    float   refractory;          // refractory period remaining
+    float   refractory_period;   // total refractory period
+    int32_t fired;               // 1 if fired this timestep
+    int32_t spike_count;         // total spikes
+    float   last_spike_time;     // for STDP
+    int32_t layer;               // which layer
+    int32_t neuron_id;
+} LIFNeuron;
+
+// ── Synapse ───────────────────────────────────
+typedef struct {
+    int32_t pre;           // pre-synaptic neuron id
+    int32_t post;          // post-synaptic neuron id
+    float   weight;        // synaptic weight
+    float   delay;         // transmission delay (timesteps)
+    float   delay_counter; // current delay countdown
+    int32_t pending;       // spike in transit
+    float   eligibility;   // for STDP learning
+} Synapse;
+
+// ── Spike record ─────────────────────────────
+typedef struct {
+    int32_t neuron_id;
+    float   time;
+} SpikeRecord;
+
+// ── Spiking Network ───────────────────────────
+typedef struct {
+    LIFNeuron   neurons[NEURO_MAX_NEURONS];
+    int32_t     n_neurons;
+    Synapse     synapses[NEURO_MAX_SYNAPSES];
+    int32_t     n_synapses;
+    SpikeRecord spike_history[NEURO_MAX_SPIKE_BUF];
+    int32_t     n_spikes;
+    float       time;           // simulation time
+    float       dt;             // timestep
+    float       stdp_lr;        // STDP learning rate
+    float       stdp_tau;       // STDP time constant
+} SpikingNetwork;
+
+// ── Create network ────────────────────────────
+void *__taipan_neuro_new(float dt) {
+    SpikingNetwork *net = calloc(1, sizeof(SpikingNetwork));
+    net->dt       = (dt > 0) ? dt : 0.1f;
+    net->time     = 0.0f;
+    net->stdp_lr  = 0.01f;
+    net->stdp_tau = 20.0f;
+    return (void*)net;
+}
+
+void __taipan_neuro_free(void *np) { free(np); }
+
+// ── Add neuron ────────────────────────────────
+int32_t __taipan_neuro_add_neuron(void *np, float threshold,
+                                   float leak, int32_t layer) {
+    SpikingNetwork *net = (SpikingNetwork*)np;
+    if (!net || net->n_neurons >= NEURO_MAX_NEURONS) return -1;
+    int32_t id = net->n_neurons++;
+    LIFNeuron *n = &net->neurons[id];
+    n->membrane_potential = -65.0f;
+    n->threshold          = threshold > 0 ? threshold : -55.0f;
+    n->resting_potential  = -65.0f;
+    n->reset_potential    = -70.0f;
+    n->leak               = (leak > 0 && leak < 1) ? leak : 0.9f;
+    n->refractory         = 0.0f;
+    n->refractory_period  = 2.0f;
+    n->fired              = 0;
+    n->spike_count        = 0;
+    n->last_spike_time    = -1000.0f;
+    n->layer              = layer;
+    n->neuron_id          = id;
+    return id;
+}
+
+// ── Add synapse ───────────────────────────────
+int32_t __taipan_neuro_connect(void *np, int32_t pre, int32_t post,
+                                float weight, float delay) {
+    SpikingNetwork *net = (SpikingNetwork*)np;
+    if (!net || net->n_synapses >= NEURO_MAX_SYNAPSES) return -1;
+    int32_t id = net->n_synapses++;
+    Synapse *s = &net->synapses[id];
+    s->pre           = pre;
+    s->post          = post;
+    s->weight        = weight;
+    s->delay         = (delay > 0) ? delay : 1.0f;
+    s->delay_counter = 0.0f;
+    s->pending       = 0;
+    s->eligibility   = 0.0f;
+    return id;
+}
+
+// ── Inject current into neuron ────────────────
+void __taipan_neuro_inject(void *np, int32_t neuron_id, float current) {
+    SpikingNetwork *net = (SpikingNetwork*)np;
+    if (!net || neuron_id < 0 || neuron_id >= net->n_neurons) return;
+    net->neurons[neuron_id].membrane_potential += current;
+}
+
+// ── Step simulation by dt ─────────────────────
+void __taipan_neuro_step(void *np) {
+    SpikingNetwork *net = (SpikingNetwork*)np;
+    if (!net) return;
+
+    // Reset fired flags
+    for (int32_t i = 0; i < net->n_neurons; i++)
+        net->neurons[i].fired = 0;
+
+    // Update neurons (LIF dynamics)
+    for (int32_t i = 0; i < net->n_neurons; i++) {
+        LIFNeuron *n = &net->neurons[i];
+
+        // Refractory period
+        if (n->refractory > 0.0f) {
+            n->refractory -= net->dt;
+            n->membrane_potential = n->reset_potential;
+            continue;
+        }
+
+        // Leak toward resting potential
+        n->membrane_potential = n->leak * n->membrane_potential +
+                                (1.0f - n->leak) * n->resting_potential;
+
+        // Check threshold
+        if (n->membrane_potential >= n->threshold) {
+            n->fired = 1;
+            n->spike_count++;
+            n->last_spike_time = net->time;
+            n->refractory = n->refractory_period;
+            n->membrane_potential = n->reset_potential;
+
+            // Record spike
+            if (net->n_spikes < NEURO_MAX_SPIKE_BUF) {
+                net->spike_history[net->n_spikes].neuron_id = i;
+                net->spike_history[net->n_spikes].time = net->time;
+                net->n_spikes++;
+            }
+        }
+    }
+
+    // Propagate spikes through synapses
+    for (int32_t s = 0; s < net->n_synapses; s++) {
+        Synapse *syn = &net->synapses[s];
+        LIFNeuron *pre  = &net->neurons[syn->pre];
+        LIFNeuron *post = &net->neurons[syn->post];
+
+        // New spike from pre
+        if (pre->fired) {
+            syn->pending = 1;
+            syn->delay_counter = syn->delay;
+        }
+
+        // Deliver pending spike after delay
+        if (syn->pending && syn->delay_counter <= 0.0f) {
+            post->membrane_potential += syn->weight;
+            syn->pending = 0;
+
+            // STDP: Spike-Timing-Dependent Plasticity
+            float dt_spike = net->time - post->last_spike_time;
+            if (post->fired) {
+                // pre before post → potentiation
+                syn->weight += net->stdp_lr * expf(-fabsf(dt_spike)/net->stdp_tau);
+            } else if (post->last_spike_time > 0) {
+                // post before pre → depression
+                syn->weight -= net->stdp_lr * 0.5f * expf(-fabsf(dt_spike)/net->stdp_tau);
+            }
+            // Clip weights
+            if (syn->weight > 5.0f)  syn->weight = 5.0f;
+            if (syn->weight < -5.0f) syn->weight = -5.0f;
+        }
+
+        if (syn->pending) syn->delay_counter -= net->dt;
+    }
+
+    net->time += net->dt;
+}
+
+// ── Run for N timesteps ───────────────────────
+void __taipan_neuro_run(void *np, int32_t steps) {
+    for (int32_t i = 0; i < steps; i++)
+        __taipan_neuro_step(np);
+}
+
+// ── Accessors ─────────────────────────────────
+float   __taipan_neuro_potential(void *np, int32_t id) {
+    SpikingNetwork *net=(SpikingNetwork*)np;
+    if(!net||id<0||id>=net->n_neurons) return 0.0f;
+    return net->neurons[id].membrane_potential;
+}
+int32_t __taipan_neuro_fired(void *np, int32_t id) {
+    SpikingNetwork *net=(SpikingNetwork*)np;
+    if(!net||id<0||id>=net->n_neurons) return 0;
+    return net->neurons[id].fired;
+}
+int32_t __taipan_neuro_spike_count(void *np, int32_t id) {
+    SpikingNetwork *net=(SpikingNetwork*)np;
+    if(!net||id<0||id>=net->n_neurons) return 0;
+    return net->neurons[id].spike_count;
+}
+float __taipan_neuro_time(void *np) {
+    return np ? ((SpikingNetwork*)np)->time : 0.0f;
+}
+int32_t __taipan_neuro_total_spikes(void *np) {
+    return np ? ((SpikingNetwork*)np)->n_spikes : 0;
+}
+int32_t __taipan_neuro_n_neurons(void *np) {
+    return np ? ((SpikingNetwork*)np)->n_neurons : 0;
+}
+float __taipan_neuro_synapse_weight(void *np, int32_t sid) {
+    SpikingNetwork *net=(SpikingNetwork*)np;
+    if(!net||sid<0||sid>=net->n_synapses) return 0.0f;
+    return net->synapses[sid].weight;
+}
+
+// ── Reset network ─────────────────────────────
+void __taipan_neuro_reset(void *np) {
+    SpikingNetwork *net=(SpikingNetwork*)np;
+    if(!net) return;
+    net->time=0.0f; net->n_spikes=0;
+    for(int32_t i=0;i<net->n_neurons;i++){
+        net->neurons[i].membrane_potential=net->neurons[i].resting_potential;
+        net->neurons[i].fired=0;
+        net->neurons[i].spike_count=0;
+        net->neurons[i].refractory=0.0f;
+        net->neurons[i].last_spike_time=-1000.0f;
+    }
+    for(int32_t s=0;s<net->n_synapses;s++){
+        net->synapses[s].pending=0;
+        net->synapses[s].delay_counter=0;
+    }
+}
+
+// ── Encode rate: fire N times in window ───────
+void __taipan_neuro_rate_encode(void *np, int32_t neuron_id,
+                                 float rate, int32_t window) {
+    SpikingNetwork *net=(SpikingNetwork*)np;
+    if(!net) return;
+    // Fire at given rate (spikes per timestep)
+    float interval = (rate > 0) ? 1.0f/rate : 1e9f;
+    float t=0;
+    while(t < (float)window){
+        if(t >= interval){
+            __taipan_neuro_inject(np, neuron_id, 20.0f);
+            t-=interval;
+        }
+        __taipan_neuro_step(np);
+        t+=net->dt;
+    }
+}
+
+// ── Population: add a layer of N neurons ──────
+int32_t __taipan_neuro_add_layer(void *np, int32_t n,
+                                  float threshold, float leak, int32_t layer_id) {
+    SpikingNetwork *net=(SpikingNetwork*)np;
+    if(!net) return -1;
+    int32_t first=net->n_neurons;
+    for(int32_t i=0;i<n;i++)
+        __taipan_neuro_add_neuron(np, threshold, leak, layer_id);
+    return first; // returns id of first neuron in layer
+}
+
+// ── Connect layers fully ──────────────────────
+void __taipan_neuro_connect_layers(void *np,
+                                    int32_t from_start, int32_t from_n,
+                                    int32_t to_start,   int32_t to_n,
+                                    float weight, float noise) {
+    for(int32_t i=0;i<from_n;i++)
+        for(int32_t j=0;j<to_n;j++){
+            float w=weight+((float)rand()/(float)RAND_MAX)*noise-noise*0.5f;
+            __taipan_neuro_connect(np, from_start+i, to_start+j, w, 1.0f);
+        }
+}
+
+// ── Print spike raster ────────────────────────
+void __taipan_neuro_print_raster(void *np, int32_t width) {
+    SpikingNetwork *net=(SpikingNetwork*)np;
+    if(!net) return;
+    printf("Spike raster (neurons x time):\n");
+    for(int32_t i=0;i<net->n_neurons&&i<32;i++){
+        printf("N%02d |", i);
+        for(int32_t t=0;t<width;t++){
+            int fired=0;
+            for(int32_t s=0;s<net->n_spikes;s++){
+                if(net->spike_history[s].neuron_id==i){
+                    int ts=(int)(net->spike_history[s].time/net->dt);
+                    if(ts==t){fired=1;break;}
+                }
+            }
+            printf(fired?"*":".");
+        }
+        printf("| spikes=%d\n", net->neurons[i].spike_count);
+    }
+}
