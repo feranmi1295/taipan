@@ -254,14 +254,15 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
 
         case NODE_FLOAT_LIT:
             {
-                // Round to float precision first, then get double bits of that value
-                // LLVM IR: float constants can be expressed as double hex 0xHHHH...
-                // where the hex represents the double bits of the float-rounded value
                 float  _fv = (float)node->as.float_lit.value;
-                double _dv = (double)_fv;  // exact float value as double
-                unsigned long long _bits;
-                memcpy(&_bits, &_dv, sizeof(_dv));
-                snprintf(val.name, sizeof(val.name), "0x%016llX", (unsigned long long)_bits);
+                if (_fv == 0.0f) {
+                    snprintf(val.name, sizeof(val.name), "0.0");
+                } else {
+                    double _dv = (double)_fv;
+                    unsigned long long _bits;
+                    memcpy(&_bits, &_dv, sizeof(_dv));
+                    snprintf(val.name, sizeof(val.name), "0x%016llX", (unsigned long long)_bits);
+                }
             }
             snprintf(val.lltype, sizeof(val.lltype),  "float");
             return val;
@@ -397,8 +398,8 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
             else if (!strcmp(op,"*"))  emit(cg, "  %%%d = %s %s %s, %s\n", reg, is_fp?"fmul":"mul",  left.lltype, left.name, right.name);
             else if (!strcmp(op,"/"))  emit(cg, "  %%%d = %s %s %s, %s\n", reg, is_fp?"fdiv":"sdiv", left.lltype, left.name, right.name);
             else if (!strcmp(op,"%"))  emit(cg, "  %%%d = srem %s %s, %s\n", reg,                    left.lltype, left.name, right.name);
-            else if (!strcmp(op,"==")) emit(cg, "  %%%d = %s eq  %s %s, %s\n", reg, is_fp?"fcmp":"icmp", left.lltype, left.name, right.name);
-            else if (!strcmp(op,"!=")) emit(cg, "  %%%d = %s ne  %s %s, %s\n", reg, is_fp?"fcmp":"icmp", left.lltype, left.name, right.name);
+            else if (!strcmp(op,"==")) emit(cg, "  %%%d = %s %s  %s %s, %s\n", reg, is_fp?"fcmp":"icmp", is_fp?"oeq":"eq", left.lltype, left.name, right.name);
+            else if (!strcmp(op,"!=")) emit(cg, "  %%%d = %s %s  %s %s, %s\n", reg, is_fp?"fcmp":"icmp", is_fp?"one":"ne", left.lltype, left.name, right.name);
             else if (!strcmp(op,"<"))  emit(cg, "  %%%d = %s %s  %s %s, %s\n", reg, is_fp?"fcmp":"icmp", is_fp?"olt":"slt", left.lltype, left.name, right.name);
             else if (!strcmp(op,">"))  emit(cg, "  %%%d = %s %s  %s %s, %s\n", reg, is_fp?"fcmp":"icmp", is_fp?"ogt":"sgt", left.lltype, left.name, right.name);
             else if (!strcmp(op,"<=")) emit(cg, "  %%%d = %s %s  %s %s, %s\n", reg, is_fp?"fcmp":"icmp", is_fp?"ole":"sle", left.lltype, left.name, right.name);
@@ -1075,6 +1076,11 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
                     {"neuro_add_layer",      "@__taipan_neuro_add_layer",      "i32"},
                     {"neuro_connect_layers", "@__taipan_neuro_connect_layers", "void"},
                     {"neuro_print_raster",   "@__taipan_neuro_print_raster",   "void"},
+                    // error handling
+                    {"error_get",   "@__taipan_error_get",   "i8*"},
+                    {"error_set",   "@__taipan_error_set",   "void"},
+                    {"error_clear", "@__taipan_error_clear", "void"},
+                    {"error_has",   "@__taipan_error_has",   "i32"},
                     // str_len alias
                     {"str_len", "@__taipan_str_len", "i32"},
                     {NULL, NULL, NULL}
@@ -1233,8 +1239,10 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
 static void cg_block(Codegen *cg, ASTNode *node) {
     if (!node) return;
     cg_scope_push(cg);
-    for (int i = 0; i < node->as.block.count; i++)
+    for (int i = 0; i < node->as.block.count; i++) {
         cg_stmt(cg, node->as.block.stmts[i]);
+        if (cg->last_was_ret) break; // stop after return/throw
+    }
     cg_scope_pop(cg);
 }
 
@@ -1274,6 +1282,89 @@ static void cg_stmt(Codegen *cg, ASTNode *node) {
         }
 
         // ── return expr ──────────────────────
+        case NODE_THROW: {
+            if (node->as.throw_stmt.value) {
+                CGValue v = cg_expr(cg, node->as.throw_stmt.value);
+                if (strcmp(v.lltype, "i8*") != 0) {
+                    int r = next_reg(cg);
+                    emit(cg, "  %%%d = call i8* @__taipan_int_to_str(%s %s)\n",
+                         r, v.lltype, v.name);
+                    snprintf(v.name, sizeof(v.name), "%%%d", r);
+                }
+                emit(cg, "  call void @__taipan_error_set(i8* %s)\n", v.name);
+            }
+            // if inside a try block jump to its check label
+            if (cg->try_depth > 0) {
+                int tid = cg->try_ids[cg->try_depth - 1];
+                emit(cg, "  br label %%try.check.%d\n", tid);
+                cg->last_was_ret = 1;
+            } else {
+                // not in try — return from function
+                if (cg->current_fn_ret[0] && strcmp(cg->current_fn_ret,"void")!=0) {
+                    if (!strcmp(cg->current_fn_ret,"float"))
+                        emit(cg,"  ret float 0.0\n");
+                    else if (!strcmp(cg->current_fn_ret,"i8*"))
+                        emit(cg,"  ret i8* null\n");
+                    else
+                        emit(cg,"  ret %s 0\n", cg->current_fn_ret);
+                } else {
+                    emit(cg,"  ret void\n");
+                }
+                cg->last_was_ret = 1;
+            }
+            break;
+        }
+        case NODE_TRY: {
+            int id = next_label(cg);
+            // push try context so throw knows where to jump
+            if (cg->try_depth < 64) cg->try_ids[cg->try_depth++] = id;
+            emit(cg, "  call void @__taipan_error_clear()\n");
+            emit(cg, "  br label %%try.body.%d\n", id);
+            emit(cg, "try.body.%d:\n", id);
+            cg->last_was_ret = 0;
+            cg_block(cg, node->as.try_stmt.try_block);
+            if (!cg->last_was_ret)
+                emit(cg, "  br label %%try.check.%d\n", id);
+            // pop try context
+            if (cg->try_depth > 0) cg->try_depth--;
+            emit(cg, "try.check.%d:\n", id);
+            int err_reg = next_reg(cg);
+            emit(cg, "  %%%d = call i32 @__taipan_error_has()\n", err_reg);
+            int err_bool = next_reg(cg);
+            emit(cg, "  %%%d = icmp ne i32 %%%d, 0\n", err_bool, err_reg);
+            emit(cg, "  br i1 %%%d, label %%try.catch.%d, label %%try.end.%d\n",
+                 err_bool, id, id);
+            emit(cg, "try.catch.%d:\n", id);
+            if (node->as.try_stmt.catch_block) {
+                if (node->as.try_stmt.catch_var[0]) {
+                    int eptr = next_reg(cg);
+                    emit(cg, "  %%%d = call i8* @__taipan_error_get()\n", eptr);
+                    int ealloc = next_reg(cg);
+                    emit(cg, "  %%%d = alloca i8*\n", ealloc);
+                    emit(cg, "  store i8* %%%d, i8** %%%d\n", eptr, ealloc);
+                    cg_scope_push(cg);
+                    char ealloc_str[32];
+                    snprintf(ealloc_str, sizeof(ealloc_str), "%%%d", ealloc);
+                    cg_scope_define(cg, node->as.try_stmt.catch_var, "i8*", ealloc_str);
+                    cg->last_was_ret = 0;
+                    cg_block(cg, node->as.try_stmt.catch_block);
+                    cg_scope_pop(cg);
+                } else {
+                    cg->last_was_ret = 0;
+                    cg_block(cg, node->as.try_stmt.catch_block);
+                }
+                if (!cg->last_was_ret)
+                    emit(cg, "  call void @__taipan_error_clear()\n");
+            }
+            int catch_ret = cg->last_was_ret;
+            if (!catch_ret)
+                emit(cg, "  br label %%try.end.%d\n", id);
+            cg->last_was_ret = 0;
+            emit(cg, "try.end.%d:\n", id);
+            if (catch_ret)
+                emit(cg, "  unreachable\n");
+            break;
+        }
         case NODE_RETURN: {
             if (node->as.ret.value) {
                 CGValue v = cg_expr(cg, node->as.ret.value);
@@ -1649,6 +1740,8 @@ static void cg_fn(Codegen *cg, ASTNode *node) {
     int is_main = !strcmp(node->as.fn_def.name, "main");
     if (is_main) strncpy(ret_type, "i32", sizeof(ret_type)-1);
     strncpy(cg->current_fn_ret, ret_type, sizeof(cg->current_fn_ret)-1);
+    cg->try_depth = 0; // reset try context per function
+    cg->last_was_ret = 0; // reset ret flag per function
 
     // Signature
     fprintf(cg->out, "define %s @%s(", ret_type, node->as.fn_def.name);
@@ -1707,6 +1800,11 @@ void codegen_run(Codegen *cg, ASTNode *program) {
     emit(cg, "declare i32 @printf(i8*, ...)\n");
     emit(cg, "declare i8* @malloc(i32)\n");
     emit(cg, "declare i8* @memset(i8*, i32, i64)\n");
+    // error handling runtime
+    emit(cg, "declare i8* @__taipan_error_get()\n");
+    emit(cg, "declare void @__taipan_error_set(i8*)\n");
+    emit(cg, "declare void @__taipan_error_clear()\n");
+    emit(cg, "declare i32 @__taipan_error_has()\n");
     emit(cg, "declare i8* @__taipan_array_new(i32, i32)\n");
     emit(cg, "declare void @free(i8*)\n");
     emit(cg, "declare i32 @__taipan_array_len(i8*)\n");

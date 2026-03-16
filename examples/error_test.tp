@@ -1,0 +1,92 @@
+use std.io
+use std.fs
+use std.string
+
+fn divide(a: f32, b: f32) -> f32 {
+    if a == 0.0 {
+        throw "division by zero"
+    }
+    if b == 0.0 {
+        throw "division by zero"
+    }
+    return a / b
+}
+
+fn safe_divide(a: f32, b: f32) -> f32 {
+    try {
+        let r: f32 = divide(a, b)
+        return r
+    } catch (err) {
+        print("caught error: ")
+        println(err)
+        return 0.0
+    }
+    return 0.0
+}
+
+fn main() {
+    println("=== Error Handling Test ===")
+    println("")
+
+    // Test 1: throw and catch
+    println("--- Test 1: throw/catch ---")
+    let r1: f32 = safe_divide(10.0, 2.0)
+    print("10/2 = ")
+    println(r1)
+
+    let r2: f32 = safe_divide(10.0, 0.0)
+    print("10/0 = ")
+    println(r2)
+
+    // Test 2: try/catch with error_has check
+    println("")
+    println("--- Test 2: manual error check ---")
+    error_clear()
+    divide(5.0, 0.0)
+    if error_has() {
+        print("error detected: ")
+        println(error_get())
+        error_clear()
+    }
+    println("error cleared:")
+    println(error_has())
+
+    // Test 3: nested try/catch
+    println("")
+    println("--- Test 3: nested try ---")
+    try {
+        println("trying...")
+        throw "test error"
+        println("never reached")
+    } catch (err) {
+        print("caught: ")
+        println(err)
+    }
+    println("after try")
+
+    // Test 4: successful try
+    println("")
+    println("--- Test 4: successful try ---")
+    try {
+        let r: f32 = divide(20.0, 4.0)
+        print("20/4 = ")
+        println(r)
+    } catch (err) {
+        println("should not reach here")
+    }
+
+    // Test 5: error functions
+    println("")
+    println("--- Test 5: error functions ---")
+    error_set("manual error")
+    println("has error:")
+    println(error_has())
+    println("error message:")
+    println(error_get())
+    error_clear()
+    println("after clear:")
+    println(error_has())
+
+    println("")
+    println("=== Error handling works! ===")
+}

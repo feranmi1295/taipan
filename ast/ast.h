@@ -11,6 +11,8 @@ typedef enum {
     NODE_FN_DEF,
     NODE_ENTITY_DEF,
     NODE_LET,
+    NODE_TRY,
+    NODE_THROW,
     NODE_RETURN,
     NODE_IF,
     NODE_WHILE,
@@ -86,6 +88,8 @@ struct ASTNode {
             ASTNode *then_block;
             ASTNode *else_block;
         } if_stmt;
+        struct { ASTNode *try_block; char catch_var[64]; ASTNode *catch_block; } try_stmt;
+        struct { ASTNode *value; } throw_stmt;
         struct { ASTNode *condition; ASTNode *body; }       while_stmt;
         struct {
             char    *var;

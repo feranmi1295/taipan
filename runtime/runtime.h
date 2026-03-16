@@ -371,3 +371,9 @@ void    __taipan_neuro_rate_encode   (void *net, int32_t id, float rate, int32_t
 int32_t __taipan_neuro_add_layer     (void *net, int32_t n, float threshold, float leak, int32_t layer_id);
 void    __taipan_neuro_connect_layers(void *net, int32_t fs, int32_t fn, int32_t ts, int32_t tn, float w, float noise);
 void    __taipan_neuro_print_raster  (void *net, int32_t width);
+
+// error handling
+void    __taipan_error_set   (const char *msg);
+char   *__taipan_error_get   (void);
+void    __taipan_error_clear (void);
+int32_t __taipan_error_has   (void);

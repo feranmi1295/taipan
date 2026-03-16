@@ -471,6 +471,36 @@ static ASTNode *parse_stmt(Parser *p) {
         return n;
     }
 
+    // try / catch
+    if (match(p, TOK_TRY)) {
+        ASTNode *n = ast_new(NODE_TRY, line, col);
+        consume(p, TOK_LBRACE, "Expected '{' after try");
+        n->as.try_stmt.try_block = parse_block(p);
+        n->as.try_stmt.catch_var[0] = '\0';
+        n->as.try_stmt.catch_block = NULL;
+        if (match(p, TOK_CATCH)) {
+            // optional: catch (err)
+            if (match(p, TOK_LPAREN)) {
+                if (check(p, TOK_IDENT)) {
+                    Token t = p->current;
+                    advance(p);
+                    char *name = tok_str(&t);
+                    strncpy(n->as.try_stmt.catch_var, name, 63);
+                    free(name);
+                }
+                consume(p, TOK_RPAREN, "Expected ')' after catch variable");
+            }
+            consume(p, TOK_LBRACE, "Expected '{' after catch");
+            n->as.try_stmt.catch_block = parse_block(p);
+        }
+        return n;
+    }
+    // throw
+    if (match(p, TOK_THROW)) {
+        ASTNode *n = ast_new(NODE_THROW, line, col);
+        n->as.throw_stmt.value = parse_expr(p);
+        return n;
+    }
     // if / else if / else
     if (match(p, TOK_IF)) {
         ASTNode *n = ast_new(NODE_IF, line, col);

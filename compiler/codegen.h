@@ -38,6 +38,8 @@ typedef struct {
     char      current_entity[64]; // set when inside entity method codegen
     int       last_was_ret;        // 1 if last stmt in block was a return
     char      current_fn_ret[64];   // return type of current function being compiled
+    int       try_depth;            // nesting depth of try blocks
+    int       try_ids[64];          // stack of try block ids for throw->catch jump
 } Codegen;
 
 void codegen_init  (Codegen *cg, FILE *out);

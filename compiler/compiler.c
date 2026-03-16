@@ -179,7 +179,13 @@ int compiler_run(CompilerOptions *opts) {
     char out_buf[512];
     const char *out_path = opts->out_path;
     if (!out_path) {
-        derive_out_path(opts->src_path, out_buf, sizeof(out_buf));
+        // use primary src path (first file)
+        const char *primary = opts->src_path ? opts->src_path :
+                              (opts->n_files > 0 ? opts->src_paths[0] : NULL);
+        if (primary)
+            derive_out_path(primary, out_buf, sizeof(out_buf));
+        else
+            strncpy(out_buf, "output.ll", sizeof(out_buf));
         out_path = out_buf;
     }
 

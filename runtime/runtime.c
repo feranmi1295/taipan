@@ -4114,3 +4114,17 @@ void __taipan_neuro_print_raster(void *np, int32_t width) {
         printf("| spikes=%d\n", net->neurons[i].spike_count);
     }
 }
+
+// ─────────────────────────────────────────────
+//  Error handling runtime
+// ─────────────────────────────────────────────
+static char g_error_msg[1024] = {0};
+static int  g_has_error = 0;
+
+void __taipan_error_set(const char *msg) {
+    if (msg) strncpy(g_error_msg, msg, sizeof(g_error_msg)-1);
+    g_has_error = 1;
+}
+char *__taipan_error_get(void) { return g_error_msg; }
+void  __taipan_error_clear(void) { g_has_error=0; g_error_msg[0]='\0'; }
+int32_t __taipan_error_has(void) { return g_has_error; }

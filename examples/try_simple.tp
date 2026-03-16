@@ -1,0 +1,13 @@
+use std.io
+
+fn main() {
+    try {
+        println("in try")
+        throw "oops"
+        println("after throw")
+    } catch (err) {
+        print("caught: ")
+        println(err)
+    }
+    println("after try")
+}

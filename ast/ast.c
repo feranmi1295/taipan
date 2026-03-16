@@ -73,6 +73,13 @@ void ast_free(ASTNode *n) {
             ast_free(n->as.for_iter.iterable);
             ast_free(n->as.for_iter.body);
             break;
+        case NODE_TRY:
+            ast_free(n->as.try_stmt.try_block);
+            ast_free(n->as.try_stmt.catch_block);
+            break;
+        case NODE_THROW:
+            ast_free(n->as.throw_stmt.value);
+            break;
         case NODE_UNSAFE_BLOCK:
         case NODE_BLOCK:
             for (i = 0; i < n->as.block.count; i++) ast_free(n->as.block.stmts[i]);
