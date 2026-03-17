@@ -325,11 +325,22 @@ static ASTNode *parse_fn_def(Parser *p, int is_unsafe) {
     Token name_tok = consume(p, TOK_IDENT, "Expected function name");
 
     ASTNode *fn = ast_new(NODE_FN_DEF, line, col);
-    fn->as.fn_def.name      = tok_str(&name_tok);
-    fn->as.fn_def.is_unsafe = is_unsafe;
+    fn->as.fn_def.name             = tok_str(&name_tok);
+    fn->as.fn_def.is_unsafe        = is_unsafe;
+    fn->as.fn_def.type_param_count = 0;
+    // Optional generic type params: <T, U, ...>
+    if (match(p, TOK_LT)) {
+        while (!check(p, TOK_GT) && !check(p, TOK_EOF)) {
+            Token tp = consume(p, TOK_IDENT, "Expected type parameter name");
+            if (fn->as.fn_def.type_param_count < 8)
+                fn->as.fn_def.type_params[fn->as.fn_def.type_param_count++] = tok_str(&tp);
+            if (!match(p, TOK_COMMA)) break;
+        }
+        consume(p, TOK_GT, "Expected '>' after type parameters");
+    }
+
 
     consume(p, TOK_LPAREN, "Expected '(' after function name");
-
     Param *params = NULL;
     int    param_count = 0;
     if (!check(p, TOK_RPAREN)) {
@@ -366,7 +377,18 @@ static ASTNode *parse_entity_def(Parser *p) {
     consume(p, TOK_LBRACE, "Expected '{'");
 
     ASTNode *entity = ast_new(NODE_ENTITY_DEF, line, col);
-    entity->as.entity_def.name = tok_str(&name_tok);
+    entity->as.entity_def.name             = tok_str(&name_tok);
+    entity->as.entity_def.type_param_count = 0;
+    // Optional generic type params: <T, U, ...>
+    if (match(p, TOK_LT)) {
+        while (!check(p, TOK_GT) && !check(p, TOK_EOF)) {
+            Token tp = consume(p, TOK_IDENT, "Expected type parameter name");
+            if (entity->as.entity_def.type_param_count < 8)
+                entity->as.entity_def.type_params[entity->as.entity_def.type_param_count++] = tok_str(&tp);
+            if (!match(p, TOK_COMMA)) break;
+        }
+        consume(p, TOK_GT, "Expected '>' after type parameters");
+    }
 
     ASTNode **members = NULL;
     int count = 0;

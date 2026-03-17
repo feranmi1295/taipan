@@ -32,11 +32,61 @@ typedef struct {
 
 static EntityInfo  entity_registry[MAX_ENTITIES];
 
+// ── Generic function registry ────────────────────────────────
+#define MAX_GENERIC_INSTS 512
+typedef struct {
+    char base_name[64];      // e.g. "max"
+    char type_args[8][64];   // e.g. ["i32"]
+    int  n_type_args;
+    char mangled[128];       // e.g. "max__i32"
+    char ret_lltype[64];
+} GenericInst;
+static GenericInst g_generic_insts[MAX_GENERIC_INSTS];
+static int         g_generic_inst_count = 0;
+
+// Find or create a mangled name for a generic instantiation
+static const char *generic_mangle(const char *base, const char **targs, int n) {
+    // Check if already instantiated
+    for (int i = 0; i < g_generic_inst_count; i++) {
+        if (strcmp(g_generic_insts[i].base_name, base) != 0) continue;
+        if (g_generic_insts[i].n_type_args != n) continue;
+        int match = 1;
+        for (int j = 0; j < n; j++)
+            if (strcmp(g_generic_insts[i].type_args[j], targs[j]) != 0) { match=0; break; }
+        if (match) return g_generic_insts[i].mangled;
+    }
+    if (g_generic_inst_count >= MAX_GENERIC_INSTS) return base;
+    GenericInst *gi = &g_generic_insts[g_generic_inst_count++];
+    strncpy(gi->base_name, base, 63);
+    gi->n_type_args = n;
+    char mangled[128];
+    snprintf(mangled, sizeof(mangled), "%s", base);
+    for (int i = 0; i < n; i++) {
+        strncat(mangled, "__", sizeof(mangled)-1);
+        strncat(mangled, targs[i], sizeof(mangled)-1);
+    }
+    strncpy(gi->mangled, mangled, 127);
+    for (int j = 0; j < n; j++) strncpy(gi->type_args[j], targs[j], 63);
+    return gi->mangled;
+}
+
 // ── Regular function return type registry ─────────────────
 typedef struct { char name[64]; char ret_lltype[64]; } FnInfo;
 #define MAX_FNS 256
 static FnInfo fn_registry[MAX_FNS];
 static int    fn_count = 0;
+
+// Generic function AST store
+#define MAX_GENERIC_FNS 128
+static ASTNode *g_generic_fns[MAX_GENERIC_FNS];
+static int      g_generic_fn_count = 0;
+
+static ASTNode *generic_fn_find(const char *name) {
+    for (int i = 0; i < g_generic_fn_count; i++)
+        if (g_generic_fns[i] && !strcmp(g_generic_fns[i]->as.fn_def.name, name))
+            return g_generic_fns[i];
+    return NULL;
+}
 static void fn_register(const char *name, const char *ret) {
     if (fn_count >= MAX_FNS) return;
     strncpy(fn_registry[fn_count].name,     name, 63);
@@ -220,6 +270,7 @@ static int intern_string(Codegen *cg, const char *str) {
 static CGValue cg_expr (Codegen *cg, ASTNode *node);
 static void    cg_stmt (Codegen *cg, ASTNode *node);
 static void    cg_block(Codegen *cg, ASTNode *node);
+void           cg_generic_instantiate(Codegen *cg, ASTNode *fn_node, const char **targs, int n_targs);
 
 // ─────────────────────────────────────────────
 //  Expression codegen → returns SSA value
@@ -1112,10 +1163,44 @@ static CGValue cg_expr(Codegen *cg, ASTNode *node) {
                     }
                 }
                 if (!builtin_matched) {
-                    snprintf(callee, sizeof(callee), "@%s", fname);
-                    // look up return type from fn registry
-                    const char *looked = fn_lookup_ret(fname);
-                    if (looked) strncpy(ret_type, looked, 63);
+                    // Check if this is a generic function call
+                    ASTNode *gfn = generic_fn_find(fname);
+                    if (gfn && gfn->as.fn_def.type_param_count > 0 && argc > 0) {
+                        // Infer type args from actual argument types
+                        const char *targs[8];
+                        int n_targs = gfn->as.fn_def.type_param_count;
+                        for (int ti = 0; ti < n_targs && ti < argc; ti++)
+                            targs[ti] = args[ti].lltype;
+                        // Get mangled name (registers the instantiation)
+                        const char *mangled = generic_mangle(fname, targs, n_targs);
+                        // Queue instantiation to emit after current function
+                        if (cg->pending_generic_count < 128) {
+                            int qi = cg->pending_generic_count++;
+                            cg->pending_generic_fns[qi] = (void*)gfn;
+                            cg->pending_targ_counts[qi] = n_targs;
+                            for (int ti=0;ti<n_targs;ti++)
+                                cg->pending_targs[qi][ti] = strdup(targs[ti]);
+                        }
+                        // Determine return type for call site
+                        char greg_ret[64] = "void";
+                        if (gfn->as.fn_def.return_type) {
+                            ASTNode *rt = gfn->as.fn_def.return_type;
+                            const char *rn = (rt->type==NODE_TYPE)?rt->as.type_node.name:NULL;
+                            int rs=0;
+                            for(int j=0;j<n_targs;j++) {
+                                if(rn && !strcmp(rn, gfn->as.fn_def.type_params[j])) {
+                                    strncpy(greg_ret, targs[j], 63); rs=1; break;
+                                }
+                            }
+                            if(!rs) lltype_of_node(rt, greg_ret, sizeof(greg_ret));
+                        }
+                        snprintf(callee, sizeof(callee), "@%s", mangled);
+                        strncpy(ret_type, greg_ret, 63);
+                    } else {
+                        snprintf(callee, sizeof(callee), "@%s", fname);
+                        const char *looked = fn_lookup_ret(fname);
+                        if (looked) strncpy(ret_type, looked, 63);
+                    }
                 }
             } else if (node->as.call.callee->type == NODE_MEMBER) {
                 // method call: obj.method(args) → @Entity__method(self, args)
@@ -1731,6 +1816,111 @@ static void cg_entity(Codegen *cg, ASTNode *node) {
     }
 }
 
+// ── Instantiate a generic function with concrete types ────────
+// Substitutes type param names with concrete llvm types in a copy
+void cg_generic_instantiate(Codegen *cg, ASTNode *fn_node,
+                                    const char **targs, int n_targs) {
+    // Build substitution map: type_param[i] -> targs[i]
+    int np = fn_node->as.fn_def.type_param_count;
+    // Mangle name
+    const char *mangled = generic_mangle(fn_node->as.fn_def.name,
+                                          targs, n_targs);
+    // Check if already emitted
+    for (int i = 0; i < fn_count; i++)
+        if (!strcmp(fn_registry[i].name, mangled)) return;
+
+    // Determine return type with substitution
+    char ret_type[64] = "void";
+    if (fn_node->as.fn_def.return_type) {
+        ASTNode *rtype = fn_node->as.fn_def.return_type;
+        const char *raw_ret = (rtype->type == NODE_TYPE) ? rtype->as.type_node.name : NULL;
+        int ret_subst = 0;
+        for (int i = 0; i < np && i < n_targs; i++) {
+            if (raw_ret && !strcmp(raw_ret, fn_node->as.fn_def.type_params[i])) {
+                strncpy(ret_type, targs[i], 63);
+                ret_subst = 1;
+                break;
+            }
+        }
+        if (!ret_subst) lltype_of_node(rtype, ret_type, sizeof(ret_type));
+    }
+    fn_register(mangled, ret_type);
+
+    // Emit function signature
+    fprintf(cg->out, "define %s @%s(", ret_type, mangled);
+    for (int i = 0; i < fn_node->as.fn_def.param_count; i++) {
+        if (i) fprintf(cg->out, ", ");
+        char pt[64] = "i8*";
+        ASTNode *ptype = fn_node->as.fn_def.params[i].type;
+        if (ptype) {
+            const char *raw = (ptype->type == NODE_TYPE) ? ptype->as.type_node.name : NULL;
+            int subst = 0;
+            for (int j = 0; j < np && j < n_targs; j++) {
+                if (raw && !strcmp(raw, fn_node->as.fn_def.type_params[j])) {
+                    strncpy(pt, targs[j], 63);
+                    subst = 1; break;
+                }
+            }
+            if (!subst) lltype_of_node(ptype, pt, sizeof(pt));
+        }
+        fprintf(cg->out, "%s %%param.%s", pt, fn_node->as.fn_def.params[i].name);
+    }
+    fprintf(cg->out, ") {\nentry:\n");
+
+    // Save/restore codegen state
+    char saved_fn_ret[64];
+    strncpy(saved_fn_ret, cg->current_fn_ret, 63);
+    strncpy(cg->current_fn_ret, ret_type, 63);
+    int saved_try_depth = cg->try_depth;
+    cg->try_depth = 0;
+    cg->last_was_ret = 0;
+
+    // Emit params as alloca
+    cg_scope_push(cg);
+    for (int i = 0; i < fn_node->as.fn_def.param_count; i++) {
+        char pt[64] = "i8*";
+        ASTNode *ptype = fn_node->as.fn_def.params[i].type;
+        if (ptype) {
+            // Check if raw type name is a generic param
+            const char *raw_name = (ptype->type == NODE_TYPE) ? ptype->as.type_node.name : NULL;
+            int substituted = 0;
+            for (int j = 0; j < np && j < n_targs; j++) {
+                if (raw_name && !strcmp(raw_name, fn_node->as.fn_def.type_params[j])) {
+                    strncpy(pt, targs[j], 63);
+                    substituted = 1;
+                    break;
+                }
+            }
+            if (!substituted) lltype_of_node(ptype, pt, sizeof(pt));
+        }
+        int alloca_reg = next_reg(cg);
+        emit(cg, "  %%%d = alloca %s\n", alloca_reg, pt);
+        emit(cg, "  store %s %%param.%s, %s* %%%d\n",
+             pt, fn_node->as.fn_def.params[i].name, pt, alloca_reg);
+        char alloca_str[32];
+        snprintf(alloca_str, sizeof(alloca_str), "%%%d", alloca_reg);
+        cg_scope_define(cg, fn_node->as.fn_def.params[i].name, pt, alloca_str);
+    }
+
+    // Emit body
+    cg_block(cg, fn_node->as.fn_def.body);
+
+    // Default return
+    if (!cg->last_was_ret) {
+        if (!strcmp(ret_type,"void")) emit(cg,"  ret void\n");
+        else if (!strcmp(ret_type,"float")) emit(cg,"  ret float 0.0\n");
+        else if (!strcmp(ret_type,"i8*")) emit(cg,"  ret i8* null\n");
+        else emit(cg,"  ret %s 0\n", ret_type);
+    }
+    cg_scope_pop(cg);
+    fprintf(cg->out, "}\n");
+
+    // Restore state
+    strncpy(cg->current_fn_ret, saved_fn_ret, 63);
+    cg->try_depth = saved_try_depth;
+    cg->last_was_ret = 0;
+}
+
 static void cg_fn(Codegen *cg, ASTNode *node) {
     char ret_type[64] = "void";
     if (node->as.fn_def.return_type)
@@ -1833,6 +2023,12 @@ void codegen_run(Codegen *cg, ASTNode *program) {
     for (int i = 0; i < program->as.program.count; i++) {
         ASTNode *n = program->as.program.stmts[i];
         if (n->type != NODE_FN_DEF) continue;
+        if (n->as.fn_def.type_param_count > 0) {
+            // Store generic fn for later instantiation
+            if (g_generic_fn_count < MAX_GENERIC_FNS)
+                g_generic_fns[g_generic_fn_count++] = n;
+            continue; // don't emit generic fns directly
+        }
         char ret[64] = "void";
         if (n->as.fn_def.return_type)
             lltype_of_node(n->as.fn_def.return_type, ret, sizeof(ret));
@@ -1842,7 +2038,10 @@ void codegen_run(Codegen *cg, ASTNode *program) {
     cg_scope_push(cg);
     for (int i = 0; i < program->as.program.count; i++) {
         ASTNode *n = program->as.program.stmts[i];
-        if (n->type == NODE_FN_DEF)     cg_fn(cg, n);
+        if (n->type == NODE_FN_DEF) {
+            if (n->as.fn_def.type_param_count > 0) continue; // skip generic templates
+            cg_fn(cg, n);
+        }
         else if (n->type == NODE_ENTITY_DEF) cg_entity(cg, n);
     }
     cg_scope_pop(cg);

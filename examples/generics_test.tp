@@ -1,0 +1,91 @@
+use std.io
+use std.math
+
+// Generic max function
+fn max<T>(a: T, b: T) -> T {
+    if a > b {
+        return a
+    }
+    return b
+}
+
+// Generic min function
+fn min<T>(a: T, b: T) -> T {
+    if a < b {
+        return a
+    }
+    return b
+}
+
+// Generic clamp
+fn clamp<T>(x: T, lo: T, hi: T) -> T {
+    if x < lo {
+        return lo
+    }
+    if x > hi {
+        return hi
+    }
+    return x
+}
+
+// Generic swap (returns first element after swap)
+fn add<T>(a: T, b: T) -> T {
+    return a + b
+}
+
+fn main() {
+    println("=== Generics Test ===")
+    println("")
+
+    // max with i32
+    println("--- max<i32> ---")
+    let a: i32 = 10
+    let b: i32 = 42
+    print("max(10, 42) = ")
+    println(max(a, b))
+
+    // max with f32
+    println("--- max<f32> ---")
+    let x: f32 = 3.14
+    let y: f32 = 2.71
+    print("max(3.14, 2.71) = ")
+    println(max(x, y))
+
+    // min with i32
+    println("--- min<i32> ---")
+    print("min(10, 42) = ")
+    println(min(a, b))
+
+    // min with f32
+    println("--- min<f32> ---")
+    print("min(3.14, 2.71) = ")
+    println(min(x, y))
+
+    // clamp with i32
+    println("--- clamp<i32> ---")
+    print("clamp(100, 0, 50) = ")
+    println(clamp(100, 0, 50))
+    print("clamp(-5, 0, 50) = ")
+    println(clamp(-5, 0, 50))
+    print("clamp(25, 0, 50) = ")
+    println(clamp(25, 0, 50))
+
+    // clamp with f32
+    println("--- clamp<f32> ---")
+    print("clamp(15.0, 0.0, 10.0) = ")
+    println(clamp(15.0, 0.0, 10.0))
+
+    // add with i32
+    println("--- add<i32> ---")
+    print("add(3, 4) = ")
+    println(add(3, 4))
+
+    // add with f32
+    println("--- add<f32> ---")
+    print("add(1.5, 2.5) = ")
+    println(add(1.5, 2.5))
+
+    println("")
+    println("=== Generics work! ===")
+    println("One function, multiple types — zero overhead")
+}

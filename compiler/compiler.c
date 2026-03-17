@@ -200,6 +200,21 @@ int compiler_run(CompilerOptions *opts) {
     Codegen codegen;
     codegen_init(&codegen, ir_file);
     codegen_run(&codegen, program);
+
+    // Flush pending generic instantiations BEFORE closing IR file
+    int flush_pass = 0;
+    while (codegen.pending_generic_count > 0 && flush_pass < 10) {
+        int count = codegen.pending_generic_count;
+        codegen.pending_generic_count = 0;
+        for (int qi = 0; qi < count; qi++) {
+            cg_generic_instantiate(&codegen,
+                (ASTNode*)codegen.pending_generic_fns[qi],
+                codegen.pending_targs[qi],
+                codegen.pending_targ_counts[qi]);
+        }
+        flush_pass++;
+    }
+
     fclose(ir_file);
 
     opts->had_cg_error = codegen.had_error;

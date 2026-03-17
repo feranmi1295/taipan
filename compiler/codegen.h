@@ -40,10 +40,16 @@ typedef struct {
     char      current_fn_ret[64];   // return type of current function being compiled
     int       try_depth;            // nesting depth of try blocks
     int       try_ids[64];          // stack of try block ids for throw->catch jump
+    // Pending generic instantiations
+    void    *pending_generic_fns[128];
+    const char *pending_targs[128][8];
+    int      pending_targ_counts[128];
+    int      pending_generic_count;
 } Codegen;
 
 void codegen_init  (Codegen *cg, FILE *out);
 void codegen_run   (Codegen *cg, ASTNode *program);
+void cg_generic_instantiate(Codegen *cg, struct ASTNode *fn_node, const char **targs, int n_targs);
 void codegen_free  (Codegen *cg);
 
 #endif /* CODEGEN_H */

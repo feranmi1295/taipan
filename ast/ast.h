@@ -71,11 +71,15 @@ struct ASTNode {
             ASTNode *return_type;
             ASTNode *body;
             int      is_unsafe;
+            char    *type_params[8];  // generic type params e.g. "T", "U"
+            int      type_param_count;
         } fn_def;
         struct {
             char     *name;
             ASTNode **members;
             int       member_count;
+            char     *type_params[8];
+            int       type_param_count;
         } entity_def;
         struct {
             char    *name;
